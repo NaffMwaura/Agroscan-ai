@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Jupyter Notebooks checkpoints (if any)
+.ipynb_checkpoints/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Python env config
+.env
+.env.*
+
+# Cache
+*.cache
+.cache/
+.pytest_cache/
+
+# TensorFlow saved models / checkpoints
+checkpoints/
+saved_model/
+*.h5
+*.pb
+*.ckpt*
+
+# FastAPI auto-generated docs (if customized)
+docs/
+
+# Database / large data files
+*.sqlite3
+*.db
+*.csv
+
+# Pip dependency wheels
+*.whl
+
+# Test coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# VS Code local settings
+.vscode/
+
+# Local run config
+*.run.xml
+
+# Files that contain secrets (don't commit!)
+secrets.json
+
+# Uploaded images (optional, if your app allows uploads)
+uploads/
+static/uploads/
