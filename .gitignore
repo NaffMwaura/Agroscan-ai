@@ -34,7 +34,8 @@ Thumbs.db
 # TensorFlow saved models / checkpoints
 checkpoints/
 saved_model/
-*.h5
+# I have to ignore this because it making my render not to load the file 
+#*.h5
 *.pb
 *.ckpt*
 
