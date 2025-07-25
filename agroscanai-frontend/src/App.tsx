@@ -238,7 +238,7 @@ const DiseaseDetector: React.FC<{
       const data = await response.json();
       console.log("Backend Prediction Response:", data); // <-- ADDED THIS LINE FOR DEBUGGING
       setPrediction({
-        disease: data.disease || "N/A", // <-- ADDED FALLBACK FOR DISEASE NAME
+        disease: data.prediction || "N/A", // <-- ADDED FALLBACK FOR DISEASE NAME
         confidence: parseFloat(data.confidence.toFixed(2)),
         suggestions: data.suggestions,
       });
