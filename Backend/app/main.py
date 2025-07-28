@@ -19,8 +19,7 @@ app = FastAPI(
 # --- CORS (Cross-Origin Resource Sharing) Configuration ---
 origins = [
     "http://localhost:5173",  # Default Vite dev server port
-    # Add your Netlify deployed frontend URL here later when you deploy
-    "https://agroscanai.netlify.app/",
+    "https://agroscanai.netlify.app",
 ]
 
 
