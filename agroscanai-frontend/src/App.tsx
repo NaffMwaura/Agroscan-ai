@@ -4,6 +4,7 @@ import bgImage from "../src/assets/image.png";
 import { motion } from "framer-motion";
 import React, { useState, useEffect } from "react";
 
+
 // Define custom Tailwind colors for consistency, assuming these are set in tailwind.config.js
 // If you don't have these in your tailwind.config.js, please add them:
 /*
@@ -45,7 +46,7 @@ const LandingPage: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavig
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1, duration: 1 }}
         >
-          Upload a photo of your tea plant, and AgroScan AI will tell you what's
+          Upload a photo of your tea plant, and <a >AgroScan AI</a> will tell you what's
           wrong — instantly and accurately.
         </motion.p>
         <motion.div
@@ -224,12 +225,11 @@ const DiseaseDetector: React.FC<{
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch("https://agroscan-ai-backend.onrender.com/predict",  {
+      const response = await fetch( "https://agroscan-ai-backend.onrender.com/predict",  {
         method: "POST",
         body: formData,
       });
     
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || "Prediction failed.");
