@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable, Image, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, UploadCloud, Info } from 'lucide-react-native';
+import { UploadCloud} from 'lucide-react-native';
 
-const API_KEY = ""; // Leave this empty for the immersive to provide it
+const API_URL = "https://agroscan-ai-backend.onrender.com/predict";
 
 export default function TabOneScreen() {
   const [file, setFile] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState <string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
@@ -48,28 +48,11 @@ export default function TabOneScreen() {
     setAnalysisResult(null);
 
     try {
-      const prompt = `Analyze this image of a plant or crop. Identify any signs of disease, pests, or nutritional deficiencies. Provide a brief, professional summary of the findings, including the likely problem and any recommended actions for the farmer. The response should be concise and easy to understand.`;
-      
       const payload = {
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: file.mimeType || 'image/jpeg',
-                  data: file.base64,
-                },
-              },
-            ],
-          },
-        ],
+        image_data: file.base64,
       };
 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
-      
-      const response = await fetch(apiUrl, {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,12 +65,12 @@ export default function TabOneScreen() {
       }
 
       const result = await response.json();
-      const textResult = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const prediction = result?.prediction;
 
-      if (textResult) {
-        setAnalysisResult(textResult);
+      if (prediction) {
+        setAnalysisResult(prediction);
       } else {
-        setAnalysisResult("Could not analyze the image. Please try another one.");
+        setAnalysisResult("Could not analyze the image. The response from the server was unexpected.");
       }
     } catch (error) {
       console.error("Error analyzing image:", error);

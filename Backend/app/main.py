@@ -1,15 +1,17 @@
-# AgroscanAI/backend/app/main.py
-
+import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
+from typing import Dict, Any, List
 import io
 from PIL import Image # For basic image processing
 import numpy as np # For numerical operations, especially image arrays
 import tensorflow as tf # For loading the model and tensor operations
 from tensorflow.keras.models import load_model # Specific import for loading Keras models
+from pydantic import BaseModel
+from passlib.context import CryptContext
 
 
+# Create a FastAPI application instance
 app = FastAPI(
     title="Agroscan AI Backend",
     description="API for detecting tea plant diseases using AI/ML.",
@@ -20,6 +22,9 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",  # Default Vite dev server port
     "https://agroscanai.netlify.app",
+    "http://localhost",
+    "http://localhost:8081",
+    "http://172.16.79.243",  # This is the new, required origin for your mobile app
 ]
 
 
@@ -50,9 +55,57 @@ CLASS_NAMES = [
     'gray light', 'healthy', 'red leaf spot', 'white spot'
 ]
 
-#'Anthracnose', 'algal leaf', 'bird eye spot',
-#  'brown blight', 'gray light', 'healthy', 'red leaf spot', 'white spot'
-#This is the order from the result
+
+# --- Authentication and User Management ---
+# In-memory database to store user data (for demonstration purposes only)
+# IMPORTANT: In a real-world app, this would be a persistent database (e.g., PostgreSQL).
+users_db = {}
+
+# Pydantic model for user data validation
+class User(BaseModel):
+    username: str
+    email: str
+    password: str
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+@app.post("/register")
+async def register_user(user: User):
+    """
+    Register a new user with a hashed password.
+    """
+    if user.email in users_db:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    users_db[user.email] = {
+        "username": user.username,
+        "email": user.email,
+        "hashed_password": hashed_password
+    }
+    return {"message": "User registered successfully"}
+
+@app.post("/login")
+async def login_user(user: User):
+    """
+    Log in a user by verifying their password.
+    """
+    db_user = users_db.get(user.email)
+    if not db_user:
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+    
+    if not verify_password(user.password, db_user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+    
+    return {"message": "Login successful"}
+
 
 # --- App Startup Event: Load the ML Model ---
 @app.on_event("startup")
