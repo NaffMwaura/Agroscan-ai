@@ -1,12 +1,20 @@
 import { Link, Stack, router } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, ActivityIndicator, Modal } from 'react-native';
+// FIX: Import the correct API endpoint URL from the constants file
+import { API_ENDPOINTS } from '../../utils/constants';
+// Import Feather for the eye icon
+import { Feather } from '@expo/vector-icons'; 
 
-const API_URL = "http://172.16.79.243:8000";
+// NOTE: Removed the hardcoded API_URL constant here.
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Added state for password visibility
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false); 
+  // FIX: Added state for username, which is required by your FastAPI server
+  const [username, setUsername] = useState(''); 
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
@@ -19,37 +27,42 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!email || !password) {
-      showModal('Please enter both email and password.', false);
+    // FIX: Check for username, email, and password
+    if (!username || !email || !password) {
+      showModal('Please enter your username, email, and password.', false);
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/register`, {
+      // FIX: Use the imported constant API_ENDPOINTS.REGISTER
+      const response = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        // FIX: Include username in the payload
+        body: JSON.stringify({ email, password, username }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         showModal('Registration successful! You can now log in.', true);
-        // Wait for modal to close before navigating
+        // Wait for modal to close before navigating to login
         setTimeout(() => {
           setModalVisible(false);
-          router.replace('/(auth)/login');
-        }, 2000);
+          router.push('/(auth)/login');
+        }, 1500);
       } else {
+        // Handle server-side errors (like email already registered)
         showModal(data.detail || 'Registration failed. Please try again.', false);
       }
     } catch (error) {
       console.error('Registration error:', error);
-      showModal('An error occurred. Please try again later.', false);
+      // Provide a more helpful error message in case of network failure
+      showModal(`Network error. Ensure your server at ${API_ENDPOINTS.REGISTER} is accessible.`, false);
     } finally {
       setLoading(false);
     }
@@ -57,9 +70,20 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Required for using the Feather icons */}
       <Stack.Screen options={{ headerShown: false }} />
       <Text style={styles.title}>Create Account</Text>
       <View style={styles.formContainer}>
+         {/* ADDED Username Input Field */}
+        <Text style={styles.label}>Username</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Choose a username"
+          autoCapitalize="none"
+          value={username}
+          onChangeText={setUsername}
+        />
+        {/* End ADDED */}
         <Text style={styles.label}>Email Address</Text>
         <TextInput
           style={styles.input}
@@ -69,14 +93,30 @@ export default function RegisterScreen() {
           value={email}
           onChangeText={setEmail}
         />
+
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Create a password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        <View style={styles.passwordContainer}>
+            <TextInput
+            style={styles.passwordInput}
+            placeholder="Create a password"
+            // Toggle secureTextEntry based on state
+            secureTextEntry={!isPasswordVisible} 
+            value={password}
+            onChangeText={setPassword}
+            />
+            {/* Toggle button (the eye icon) */}
+            <Pressable
+                style={styles.toggleButton}
+                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+            >
+                <Feather 
+                    name={isPasswordVisible ? 'eye-off' : 'eye'} 
+                    size={20} 
+                    color="#6b7280" 
+                />
+            </Pressable>
+        </View>
+
         <Pressable 
           style={({ pressed }) => [styles.button, pressed && { opacity: 0.8 }, loading && styles.buttonDisabled]} 
           onPress={handleRegister}
@@ -157,6 +197,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 15,
   },
+  // NEW STYLES FOR PASSWORD TOGGLE
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#d1d5db',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  passwordInput: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 15,
+  },
+  toggleButton: {
+    padding: 15,
+  },
+  // END NEW STYLES
   button: {
     padding: 15,
     borderRadius: 9999,

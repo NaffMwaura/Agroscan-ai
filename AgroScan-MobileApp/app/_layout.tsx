@@ -1,50 +1,65 @@
-import { Stack, useSegments, router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { getToken } from '../app/.utils/token-storage';
-//import { ActivityIndicator, View } from 'react-native';
+import { Stack, Redirect, SplashScreen } from 'expo-router';
+import { AuthProvider, useAuth } from '../context/auth-context'; 
+import { useEffect } from 'react';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
-const InitialLayout = () => {
-  const [isAuth, setIsAuth] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const segments = useSegments();
+SplashScreen.preventAutoHideAsync();
 
+/**
+ * This component is the main router logic, redirecting based on authentication state.
+ */
+function RootLayoutContent() {
+  // Get the global authentication state
+  const { token, isLoading } = useAuth();
+  
   useEffect(() => {
-    const checkToken = async () => {
-      try {
-        const token = await getToken();
-        setIsAuth(!!token);
-      } finally {
-        setIsAuthReady(true);
-      }
-    };
-    checkToken();
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthReady) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-
-    // If the user is authenticated and trying to access the auth group,
-    // redirect them to the main app.
-    if (isAuth && inAuthGroup) {
-      router.replace('/(main)');
+    if (!isLoading) {
+      SplashScreen.hideAsync();
     }
-    // If the user is not authenticated and not in the auth group,
-    // redirect them to the login screen.
-    else if (!isAuth && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    }
-    // Otherwise, do nothing. This allows users to navigate freely
-    // between login and register screens within the auth group.
-  }, [isAuth, isAuthReady, segments]);
+  }, [isLoading]);
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#22C55E" />
+      </View>
+    );
+  }
+
+
+  if (token) {
+    return <Redirect href="/(main)" />;
+  }
+
+  // If the user is NOT authenticated (token is false):
+  // We let them proceed to the default group, which is /(auth).
+  // Expo Router will automatically display /(auth)/index.tsx (your Landing Page).
   return (
     <Stack>
+      {/* (auth) group: Contains Landing Page, Login, Register */}
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      {/* (main) group: Protected content, only accessible via redirect above or deep link */}
       <Stack.Screen name="(main)" options={{ headerShown: false }} />
     </Stack>
   );
-};
+}
 
-export default InitialLayout;
+
+  //The Root Layout wraps the entire app in the AuthProvider.
+ 
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutContent />
+    </AuthProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  }
+});

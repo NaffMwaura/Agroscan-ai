@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@expo/vector-icons':
+        specifier: ^15.0.2
+        version: 15.0.2(expo-font@14.0.8(expo@54.0.10)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0)
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))
@@ -23,6 +26,9 @@ importers:
       expo-router:
         specifier: ~6.0.8
         version: 6.0.8(@expo/metro-runtime@5.0.4(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0)))(@types/react@19.1.15)(expo-constants@18.0.9)(expo-linking@8.0.8)(expo@54.0.10)(react-dom@19.1.0(react@19.1.0))(react-native-reanimated@3.17.5(@babel/core@7.28.3)(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.6.1(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0))(react-native-screens@4.16.0(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0))(react-native-web@0.21.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0)
+      expo-secure-store:
+        specifier: ~15.0.7
+        version: 15.0.7(expo@54.0.10)
       expo-splash-screen:
         specifier: ~31.0.10
         version: 31.0.10(expo@54.0.10)
@@ -1880,6 +1886,11 @@ packages:
         optional: true
       react-server-dom-webpack:
         optional: true
+
+  expo-secure-store@15.0.7:
+    resolution: {integrity: sha512-9q7+G1Zxr5P6J5NRIlm86KulvmYwc6UnQlYPjQLDu1drDnerz6AT6l884dPu29HgtDTn4rR0heYeeGFhMKM7/Q==}
+    peerDependencies:
+      expo: '*'
 
   expo-splash-screen@31.0.10:
     resolution: {integrity: sha512-i6g9IK798mae4yvflstQ1HkgahIJ6exzTCTw4vEdxV0J2SwiW3Tj+CwRjf0te7Zsb+7dDQhBTmGZwdv00VER2A==}
@@ -5890,6 +5901,10 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
       - supports-color
+
+  expo-secure-store@15.0.7(expo@54.0.10):
+    dependencies:
+      expo: 54.0.10(@babel/core@7.28.3)(@expo/metro-runtime@5.0.4(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0)))(expo-router@6.0.8)(react-native-webview@13.13.5(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.3)(@react-native-community/cli@12.3.6)(@types/react@19.1.15)(react@19.1.0))(react@19.1.0)
 
   expo-splash-screen@31.0.10(expo@54.0.10):
     dependencies:
