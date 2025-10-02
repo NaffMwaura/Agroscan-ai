@@ -1,11 +1,12 @@
 import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text, View, ScrollView, Pressable, Image, Dimensions } from 'react-native';
 import { Leaf, Camera, Zap, FileText } from 'lucide-react-native';
+import heroImage from '../../../AgroScan-MobileApp/assets/images/scanimage1.jpg'; // Adjust the path as necessary
+
 
 const { width } = Dimensions.get('window');
 
 // Assuming you have an image file named 'scanimage.jpg' in your assets/images folder
-const heroImage = require('@/assets/images/scanimage.jpg');
 
 const LandingPage = () => {
   return (

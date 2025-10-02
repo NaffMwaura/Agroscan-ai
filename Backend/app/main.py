@@ -24,6 +24,7 @@ origins = [
     "https://agroscanai.netlify.app",
     "http://localhost",
     "http://localhost:8081",
+    "http://172.16.75.94:8000",
     "http://172.16.79.243",  # This is the new, required origin for your mobile app
 ]
 
@@ -37,19 +38,13 @@ app.add_middleware(
 )
 
 # --- Global variable to hold the loaded ML model ---
-# It's initialized to None and loaded during startup.
 model = None
 
 # --- Configuration for our ML Model ---
-# IMPORTANT: Adjust MODEL_PATH if your .h5 file is not directly in the 'backend' folder
-# If train_model.py saved it to 'backend/best_tea_disease_model.h5', this path is correct.
 MODEL_PATH = "./best_tea_disease_model.h5"
 IMG_HEIGHT = 224
 IMG_WIDTH = 224
 
-# IMPORTANT: These class names MUST match the order that TensorFlow
-# generated them during training (usually alphabetical order of subfolders).
-# Verify this list against the output of your train_model.py script's "Found X classes" line.
 CLASS_NAMES = [
     'Anthracnose','algal leaf',  'bird eye spot', 'brown blight',
     'gray light', 'healthy', 'red leaf spot', 'white spot'
@@ -57,20 +52,26 @@ CLASS_NAMES = [
 
 
 # --- Authentication and User Management ---
-# In-memory database to store user data (for demonstration purposes only)
-# IMPORTANT: In a real-world app, this would be a persistent database (e.g., PostgreSQL).
 users_db = {}
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Pydantic model for user data validation
+# FIX 1: Pydantic model for user registration (Requires all three fields)
 class User(BaseModel):
-    username: str
+    username: str 
     email: str
     password: str
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# FIX 3: New Pydantic model for user login (Only requires email and password)
+class UserLogin(BaseModel):
+    email: str
+    password: str
 
 def get_password_hash(password: str) -> str:
+    # FIX 2: Check password length and truncate to prevent bcrypt's 72-byte limit error
+    if len(password.encode('utf-8')) > 72:
+        print("WARNING: Password truncated to 72 bytes for hashing.")
+        password = password[:72]
+        
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -84,27 +85,34 @@ async def register_user(user: User):
     if user.email in users_db:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Password is now safely handled by get_password_hash
     hashed_password = get_password_hash(user.password)
+    
     users_db[user.email] = {
         "username": user.username,
         "email": user.email,
         "hashed_password": hashed_password
     }
+    # NOTE: Returning success message. Token generation should be handled after successful login.
     return {"message": "User registered successfully"}
 
 @app.post("/login")
-async def login_user(user: User):
+# FIX 3: Using the simpler UserLogin model for the login endpoint
+async def login_user(user_data: UserLogin):
     """
     Log in a user by verifying their password.
     """
-    db_user = users_db.get(user.email)
+    db_user = users_db.get(user_data.email)
     if not db_user:
+        raise HTTPException(status_code=400, detail="Incorrect email or password!")
+    
+    # We use user_data.email and user_data.password from the new model
+    if not verify_password(user_data.password, db_user["hashed_password"]):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
-    if not verify_password(user.password, db_user["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Incorrect email or password")
-    
-    return {"message": "Login successful"}
+    # SUCCESS: Return a mock token for the frontend to save
+    mock_token = f"fake_auth_token_for_{user_data.email}"
+    return {"message": "Login successful", "token": mock_token}
 
 
 # --- App Startup Event: Load the ML Model ---
@@ -112,49 +120,37 @@ async def login_user(user: User):
 async def load_ml_model():
     """
     Load the pre-trained TensorFlow/Keras model when the FastAPI application starts.
-    This prevents loading the model on every prediction request, saving time and resources.
     """
     global model
     try:
         model = load_model(MODEL_PATH)
-        # Optional: Run a dummy prediction to 'warm up' the model if needed
-        # model.predict(np.zeros((1, IMG_HEIGHT, IMG_WIDTH, 3)))
         print(f"ML model loaded successfully from {MODEL_PATH}")
     except Exception as e:
         print(f"ERROR: Could not load the ML model from {MODEL_PATH}. Reason: {e}")
-        # Depending on criticality, you might want to raise an exception or set a flag
-        # to prevent prediction attempts if the model isn't loaded.
-        model = None # Ensure model is None if loading failed
+        model = None 
 
 # --- ML Model Prediction Function ---
 async def predict_disease_actual_model(image_bytes: bytes) -> Dict[str, Any]:
-    """
-    Uses the loaded ML model to predict the disease from an image.
-    Performs necessary image preprocessing.
-    """
+    # ... (Rest of the predict function remains the same)
     if model is None:
         raise HTTPException(status_code=503, detail="ML model not loaded. Server is not ready for predictions.")
 
     try:
         # 1. Load and preprocess the image
         image = Image.open(io.BytesIO(image_bytes))
-        image = image.resize((IMG_HEIGHT, IMG_WIDTH)) # Resize to model's input size
-        image_array = np.asarray(image) # Convert PIL Image to NumPy array
+        image = image.resize((IMG_HEIGHT, IMG_WIDTH)) 
+        image_array = np.asarray(image) 
 
-        # Normalize pixel values to [0, 1] (as done during training)
+        # Normalize pixel values to [0, 1] 
         image_array = image_array / 255.0
 
         # Add a batch dimension: (height, width, channels) -> (1, height, width, channels)
-        # The model expects a batch of images, even if it's just one.
         image_batch = np.expand_dims(image_array, axis=0)
 
         # 2. Make prediction
         predictions = model.predict(image_batch)
-        # Get the confidence for each class
-        predicted_probabilities = predictions[0] # Get probabilities for the single image
-        # Get the index of the class with the highest probability
+        predicted_probabilities = predictions[0] 
         predicted_class_index = np.argmax(predicted_probabilities)
-        # Get the confidence level of the top prediction
         confidence = float(predicted_probabilities[predicted_class_index])
 
         # 3. Get predicted class name
@@ -187,7 +183,7 @@ async def predict_disease_actual_model(image_bytes: bytes) -> Dict[str, Any]:
             "suggestions": suggestions,
             "debug_info": {
                 "received_bytes": len(image_bytes),
-                "predicted_probabilities": predicted_probabilities.tolist() # Convert numpy array to list for JSON
+                "predicted_probabilities": predicted_probabilities.tolist() 
             }
         }
 
@@ -223,3 +219,7 @@ async def predict_disease_endpoint(file: UploadFile = File(...)):
     """
     image_bytes = await file.read()
     return await predict_disease_actual_model(image_bytes)
+
+# Optional: Add a main block for easy running (if not using uvicorn directly)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
