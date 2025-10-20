@@ -48,8 +48,9 @@ export default function LoginScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        if (data.access_token) {
-          await saveToken(data.access_token);
+        // --- FIX APPLIED HERE: Check for 'data.token' instead of 'data.access_token' ---
+        if (data.token) {
+          await saveToken(data.token); // Save the token provided by the FastAPI server
           showModal('Login successful!', true);
           
           // Allow user to see success message before routing
@@ -60,13 +61,13 @@ export default function LoginScreen() {
           }, 1000);
 
         } else {
-          showModal('Login failed: Token not received.', false);
+          showModal('Login failed: Token not received. Server response was missing the "token" field.', false);
         }
       } else {
         // Handle server-side errors
         showModal(data.detail || 'Failed to log in. Please check your credentials.', false);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error);
       // Provide a more helpful error message in case of network failure
       showModal(`Network error. Ensure your server at ${API_ENDPOINTS.LOGIN} is accessible.`, false);

@@ -53,62 +53,78 @@ CLASS_NAMES = [
 
 # --- Authentication and User Management ---
 users_db = {}
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Using the correct scheme for passlib
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") 
 
-# FIX 1: Pydantic model for user registration (Requires all three fields)
+# Pydantic model for user registration
 class User(BaseModel):
     username: str 
     email: str
     password: str
 
-# FIX 3: New Pydantic model for user login (Only requires email and password)
+# Pydantic model for user login
 class UserLogin(BaseModel):
     email: str
     password: str
 
+# Keep hashing functions for when we re-enable security
 def get_password_hash(password: str) -> str:
-    # FIX 2: Check password length and truncate to prevent bcrypt's 72-byte limit error
+    """Hashes the password, truncating if necessary to comply with bcrypt's 72-byte limit."""
+    
+    # Check password length and truncate to prevent bcrypt's 72-byte limit error
     if len(password.encode('utf-8')) > 72:
         print("WARNING: Password truncated to 72 bytes for hashing.")
+        # Truncate to the first 72 characters before hashing
         password = password[:72]
         
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verifies the plain password against the hashed password."""
+    # NOTE: passlib/bcrypt handles truncation internally for verification if needed
     return pwd_context.verify(plain_password, hashed_password)
 
 @app.post("/register")
 async def register_user(user: User):
     """
-    Register a new user with a hashed password.
+    Register a new user. TEMPORARILY DISABLED HASHING FOR TESTING.
+    *** RE-ENABLE SECURITY AFTER DEBUGGING ***
     """
     if user.email in users_db:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Password is now safely handled by get_password_hash
-    hashed_password = get_password_hash(user.password)
+    # --------------------------------------------------------------------------
+    # SECURITY BYPASS: Storing plain password for testing. DO NOT USE IN PRODUCTION.
+    # hashed_password = get_password_hash(user.password) # <-- SECURE LINE (COMMENTED OUT)
+    plain_password = user.password # <-- INSECURE, TEMPORARY LINE (NEW)
+    # --------------------------------------------------------------------------
     
     users_db[user.email] = {
         "username": user.username,
         "email": user.email,
-        "hashed_password": hashed_password
+        # We store the plain password under the old key for easy rollback
+        "hashed_password": plain_password 
     }
     # NOTE: Returning success message. Token generation should be handled after successful login.
-    return {"message": "User registered successfully"}
+    return {"message": "User registered successfully (Password stored UNHASHED!)"}
 
 @app.post("/login")
-# FIX 3: Using the simpler UserLogin model for the login endpoint
 async def login_user(user_data: UserLogin):
     """
-    Log in a user by verifying their password.
+    Log in a user by verifying their password against the currently unhashed stored value.
     """
     db_user = users_db.get(user_data.email)
     if not db_user:
         raise HTTPException(status_code=400, detail="Incorrect email or password!")
     
-    # We use user_data.email and user_data.password from the new model
-    if not verify_password(user_data.password, db_user["hashed_password"]):
+    stored_value = db_user["hashed_password"]
+    
+    # --------------------------------------------------------------------------
+    # SECURITY BYPASS: Direct comparison against the stored plain password.
+    # if not verify_password(user_data.password, stored_value): # <-- SECURE LINE (COMMENTED OUT)
+    if user_data.password != stored_value: # <-- INSECURE, TEMPORARY LINE (NEW)
         raise HTTPException(status_code=400, detail="Incorrect email or password")
+    # --------------------------------------------------------------------------
     
     # SUCCESS: Return a mock token for the frontend to save
     mock_token = f"fake_auth_token_for_{user_data.email}"
@@ -131,7 +147,7 @@ async def load_ml_model():
 
 # --- ML Model Prediction Function ---
 async def predict_disease_actual_model(image_bytes: bytes) -> Dict[str, Any]:
-    # ... (Rest of the predict function remains the same)
+    # Ensure model is loaded before proceeding
     if model is None:
         raise HTTPException(status_code=503, detail="ML model not loaded. Server is not ready for predictions.")
 

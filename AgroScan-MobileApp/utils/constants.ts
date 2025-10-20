@@ -1,7 +1,7 @@
 // --- Networking Configuration ---
 
 // FIX: Updated to the correct IPv4 address of your host machine running the backend server
-const LOCAL_IP = "172.16.75.94"; 
+const LOCAL_IP = "172.16.76.164"; 
 const PORT = 8000; // Your Backend port (as defined in server.ts)
 
 // The BASE_API_URL used for all fetch requests

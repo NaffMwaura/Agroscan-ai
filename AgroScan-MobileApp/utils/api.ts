@@ -1,7 +1,7 @@
 import { Alert } from 'react-native';
 
 // FIX: Using the CORRECT IP address (172.16.75.94) where the Uvicorn server is listening.
-export const API_BASE_URL = 'http://172.16.75.94:8000'; 
+export const API_BASE_URL = 'http://172.16.76.164:8000'; 
 
 /**
  * Handles general API calls for login and registration.
@@ -9,6 +9,7 @@ export const API_BASE_URL = 'http://172.16.75.94:8000';
  * @param data The user credentials (email, password, etc.).
  * @returns The JSON response from the server if successful, or null on failure.
  */
+
 export const makeAuthRequest = async (endpoint: '/login' | '/register', data: any) => {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
