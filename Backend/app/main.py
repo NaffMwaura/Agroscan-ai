@@ -9,7 +9,7 @@ import tensorflow as tf # For loading the model and tensor operations
 from tensorflow.keras.models import load_model # Specific import for loading Keras models
 from pydantic import BaseModel
 from passlib.context import CryptContext
-
+from datetime import datetime # Added for handling timestamps if needed
 
 # Create a FastAPI application instance
 app = FastAPI(
@@ -51,8 +51,11 @@ CLASS_NAMES = [
 ]
 
 
-# --- Authentication and User Management ---
-users_db = {}
+# --- Authentication, User Management, and History Database ---
+users_db: Dict[str, Dict[str, str]] = {}
+# New in-memory database to store scan history: { user_email: [scan_data_1, scan_data_2, ...] }
+scans_db: Dict[str, List[Dict[str, Any]]] = {}
+
 # Using the correct scheme for passlib
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") 
 
@@ -66,6 +69,14 @@ class User(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+# Pydantic model for a single saved scan (sent from the frontend)
+class SavedScan(BaseModel):
+    user_email: str
+    prediction: str
+    confidence: float
+    suggestions: str
+    date: str # Recommended format: ISO string (e.g., "2023-10-21T12:00:00Z")
 
 # Keep hashing functions for when we re-enable security
 def get_password_hash(password: str) -> str:
@@ -88,15 +99,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 async def register_user(user: User):
     """
     Register a new user. TEMPORARILY DISABLED HASHING FOR TESTING.
-    *** RE-ENABLE SECURITY AFTER DEBUGGING ***
     """
     if user.email in users_db:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # --------------------------------------------------------------------------
-    # SECURITY BYPASS: Storing plain password for testing. DO NOT USE IN PRODUCTION.
-    # hashed_password = get_password_hash(user.password) # <-- SECURE LINE (COMMENTED OUT)
-    plain_password = user.password # <-- INSECURE, TEMPORARY LINE (NEW)
+    # --- SECURITY BYPASS: Storing plain password for temporary testing ---
+    plain_password = user.password 
     # --------------------------------------------------------------------------
     
     users_db[user.email] = {
@@ -105,7 +113,6 @@ async def register_user(user: User):
         # We store the plain password under the old key for easy rollback
         "hashed_password": plain_password 
     }
-    # NOTE: Returning success message. Token generation should be handled after successful login.
     return {"message": "User registered successfully (Password stored UNHASHED!)"}
 
 @app.post("/login")
@@ -121,14 +128,46 @@ async def login_user(user_data: UserLogin):
     
     # --------------------------------------------------------------------------
     # SECURITY BYPASS: Direct comparison against the stored plain password.
-    # if not verify_password(user_data.password, stored_value): # <-- SECURE LINE (COMMENTED OUT)
-    if user_data.password != stored_value: # <-- INSECURE, TEMPORARY LINE (NEW)
+    if user_data.password != stored_value: 
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     # --------------------------------------------------------------------------
     
     # SUCCESS: Return a mock token for the frontend to save
     mock_token = f"fake_auth_token_for_{user_data.email}"
     return {"message": "Login successful", "token": mock_token}
+
+# --- History Management Endpoints ---
+
+@app.post("/save_scan")
+async def save_scan_endpoint(scan_data: SavedScan):
+    """
+    Saves a prediction scan to the user's history in the in-memory database.
+    The frontend must provide all fields including user_email and date.
+    """
+    # 1. Prepare data for storage (Pydantic model to dict)
+    scan_record = scan_data.model_dump()
+    
+    # 2. Simulate database insertion
+    user_email = scan_record["user_email"]
+    
+    if user_email not in scans_db:
+        scans_db[user_email] = []
+        
+    scans_db[user_email].append(scan_record)
+    
+    # 3. Return success
+    return {"message": "Scan saved successfully"}
+
+@app.get("/get_scans/{user_email}")
+async def get_scans_endpoint(user_email: str):
+    """
+    Retrieves all saved scans for a specific user from the in-memory database.
+    """
+    # 1. Retrieve data from simulated database
+    user_scans = scans_db.get(user_email, [])
+    
+    # 2. Return results
+    return {"scans": user_scans, "count": len(user_scans)}
 
 
 # --- App Startup Event: Load the ML Model ---

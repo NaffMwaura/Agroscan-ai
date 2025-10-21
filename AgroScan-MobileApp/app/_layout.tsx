@@ -1,8 +1,10 @@
 import { Stack, Redirect, SplashScreen } from 'expo-router';
+// Ensure the path to your context file is correct: (app) -> context
 import { AuthProvider, useAuth } from '../context/auth-context'; 
 import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
+// Prevents the splash screen from auto-hiding while we check for the stored token
 SplashScreen.preventAutoHideAsync();
 
 /**
@@ -12,12 +14,15 @@ function RootLayoutContent() {
   // Get the global authentication state
   const { token, isLoading } = useAuth();
   
+  // Hide the splash screen only once the token status is determined
   useEffect(() => {
     if (!isLoading) {
-      SplashScreen.hideAsync();
+      // FIX: Use .catch() to suppress potential rejection errors if already hidden
+      SplashScreen.hideAsync().catch(e => console.error("Failed to hide splash screen:", e));
     }
   }, [isLoading]);
 
+  // Show a loading indicator while we check secure storage for a token
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -26,27 +31,26 @@ function RootLayoutContent() {
     );
   }
 
-
-  if (token) {
-    return <Redirect href="/(main)" />;
-  }
-
-  // If the user is NOT authenticated (token is false):
-  // We let them proceed to the default group, which is /(auth).
-  // Expo Router will automatically display /(auth)/index.tsx (your Landing Page).
+  // FIX: Conditionally render the correct navigation group based on the token status.
+  // This prevents the infinite remount/redirect loop.
   return (
     <Stack>
-      {/* (auth) group: Contains Landing Page, Login, Register */}
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      {/* (main) group: Protected content, only accessible via redirect above or deep link */}
-      <Stack.Screen name="(main)" options={{ headerShown: false }} />
+      {/*
+        If authenticated (token is string), show the main app group.
+        If unauthenticated (token is false), show the auth group.
+      */}
+      {token ? (
+        <Stack.Screen name="(main)" options={{ headerShown: false }} />
+      ) : (
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      )}
     </Stack>
   );
 }
 
-
-  //The Root Layout wraps the entire app in the AuthProvider.
- 
+/**
+ * The Root Layout wraps the entire app in the AuthProvider.
+ */
 export default function RootLayout() {
   return (
     <AuthProvider>

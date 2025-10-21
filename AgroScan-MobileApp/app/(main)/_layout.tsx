@@ -4,19 +4,27 @@ import { StyleSheet, View } from 'react-native';
 export default function MainLayout() {
   return (
     <View style={styles.container}>
-      <Stack>
+      {/* FIX: Set general screen options to suppress group name and apply global styling */}
+      <Stack 
+        screenOptions={{ 
+          headerTitle: '', // This suppresses the directory name (main)
+          headerTintColor: '#16a34a', // Consistent primary color
+          headerTitleStyle: { fontWeight: 'bold' }
+        }}
+      >
         <Stack.Screen
           name="index"
           options={{
-            title: 'AgroScan AI',
-            headerShown: false,
+            // We want the header visible now for the dashboard look
+            headerShown: true, 
+            title: 'Smart Plant Health Dashboard', // Custom title for the dashboard screen
           }}
         />
         <Stack.Screen
           name="explore"
           options={{
-            title: 'Explore',
-            headerShown: false,
+            title: 'Learn More',
+            headerShown: true,
           }}
         />
       </Stack>

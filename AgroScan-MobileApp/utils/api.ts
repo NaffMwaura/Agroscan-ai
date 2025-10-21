@@ -1,7 +1,6 @@
 import { Alert } from 'react-native';
 
-// FIX: Using the CORRECT IP address (172.16.75.94) where the Uvicorn server is listening.
-export const API_BASE_URL = 'http://172.16.76.164:8000'; 
+export const API_BASE_URL = 'http://172.16.76.2:8000'; 
 
 /**
  * Handles general API calls for login and registration.
