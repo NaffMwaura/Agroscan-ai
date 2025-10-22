@@ -1,170 +1,113 @@
-# AgroscanAI/backend/train_model.py
-
 import tensorflow as tf
-from tensorflow.keras.preprocessing import image_dataset_from_directory
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.optimizers import Adam
 import os
-import shutil 
-
-
-print(f"TensorFlow Version: {tf.__version__}")
-# Check for GPU
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-if physical_devices:
-    try:
-        # Enable dynamic memory allocation if you have a GPU
-        for gpu in physical_devices:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        print(f"Num GPUs Available: {len(physical_devices)}. Memory growth enabled.")
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
-else:
-    print("No GPU devices found. Training will run on CPU.")
-
 
 # --- Configuration ---
-DATASET_DIR = "../tea sickness dataset" # <--- YOU MUST CHANGE THIS PATH!
-MODEL_SAVE_FILENAME = "best_tea_disease_model_v2.h5" # Name changed to v2
-IMG_HEIGHT = 224
-IMG_WIDTH = 224
-BATCH_SIZE = 32
-SEED = 42
-EPOCHS = 30
-LEARNING_RATE = 0.0001
+IMG_SIZE = 160  # Reduced from 224 to 160 to lower memory usage
+BATCH_SIZE = 16 # Reduced from 32 to 16 to prevent MemoryError/Segmentation Fault
+EPOCHS = 30 # Increased epochs for better learning with early stopping
+DATA_DIR = '../tea sickness dataset/train' # Assuming this is your training data root
+MODEL_PATH = 'best_tea_disease_model_v3.h5'
 
-# CRITICAL UPDATE: Define the new class name for non-tea-leaf images.
-NON_TEA_LEAF_CLASS_NAME = "Other_Non_Tea_Leaf"
-# To make this work, you must create a subdirectory with this name
-# inside the 'train' and 'test' folders of your dataset, and populate
-# it with images that are NOT tea leaves (e.g., general pictures).
-
-
-# --- 1. Load and Prepare the Dataset ---
-# Ensure the dataset path exists
-if not os.path.isdir(os.path.join(DATASET_DIR, 'train')):
-    print(f"Error: Training data directory not found at {os.path.join(DATASET_DIR, 'train')}")
-    print("Please check your DATASET_DIR path in train_model.py and ensure the dataset is extracted correctly.")
+# Check if the data directory exists
+if not os.path.exists(DATA_DIR):
+    print(f"Error: Data directory not found at {DATA_DIR}")
+    print("Please check your path and make sure your 'tea sickness dataset/train' folder is in the same location.")
     exit()
 
-try:
-    print(f"\nAttempting to load training data from: {os.path.join(DATASET_DIR, 'train')}")
-    train_ds = image_dataset_from_directory(
-        os.path.join(DATASET_DIR, 'train'),
-        labels='inferred',
-        label_mode='int', # Integer-encode labels (0, 1, 2, ...)
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        interpolation='nearest',
-        batch_size=BATCH_SIZE,
-        shuffle=True, # Shuffle training data
-        seed=SEED
-    )
+# 1. Data Augmentation and Loading
+# This generator applies subtle random transformations to make the model more robust.
+train_datagen = ImageDataGenerator(
+    rescale=1./255, # Normalize pixel values
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
 
-    print(f"Attempting to load validation/test data from: {os.path.join(DATASET_DIR, 'test')}")
-    val_ds = image_dataset_from_directory(
-        os.path.join(DATASET_DIR, 'test'),
-        labels='inferred',
-        label_mode='int',
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        interpolation='nearest',
-        batch_size=BATCH_SIZE,
-        shuffle=False, # Don't shuffle validation data
-        seed=SEED
-    )
+# Load the training data, inferring class names from subdirectories
+train_generator = train_datagen.flow_from_directory(
+    DATA_DIR,
+    target_size=(IMG_SIZE, IMG_SIZE),
+    batch_size=BATCH_SIZE,
+    class_mode='categorical',
+    shuffle=True
+)
 
-    class_names = train_ds.class_names
-    num_classes = len(class_names)
-    print(f"\nFound {num_classes} classes: {class_names}") # This should now include 'Other_Non_Tea_Leaf'
+NUM_CLASSES = train_generator.num_classes
+CLASS_NAMES = list(train_generator.class_indices.keys())
+print(f"Found {NUM_CLASSES} classes: {CLASS_NAMES}")
 
-    # Normalize image pixel values from [0, 255] to [0, 1]
-    normalization_layer = tf.keras.layers.Rescaling(1./255)
-    train_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
-    val_ds = val_ds.map(lambda x, y: (normalization_layer(x), y))
+# 2. Transfer Learning using MobileNetV2
+# Load the pre-trained MobileNetV2 base model (excluding the top classification layer)
+base_model = tf.keras.applications.MobileNetV2(
+    input_shape=(IMG_SIZE, IMG_SIZE, 3), # Input shape now 160x160
+    include_top=False,
+    weights='imagenet'
+)
 
-    # Prepare data for performance (cache and prefetch)
-    AUTOTUNE = tf.data.AUTOTUNE
-    train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
-    val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
-    print("\nDataset loaded and prepared for performance (cached, prefetched, normalized).")
-
-except Exception as e:
-    print(f"\nERROR: Could not load dataset. Please check DATASET_DIR path and folder structure.")
-    print(f"Details: {e}")
-    print("Expected structure: DATASET_DIR/train/class1/, DATASET_DIR/train/class2/, etc., and the new folder: DATASET_DIR/train/Other_Non_Tea_Leaf/")
-    exit() # Exit the script if dataset loading fails
-
-
-# --- 2. Build the CNN Model using Transfer Learning ---
-
-print("\n--- Building the Transfer Learning Model ---")
-
-# Load the MobileNetV2 base model, pre-trained on ImageNet
-base_model = MobileNetV2(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3),
-                         include_top=False,
-                         weights='imagenet')
-
-# Freeze the base model layers
+# Freeze the weights of the base model so they aren't changed during initial training
 base_model.trainable = False
 
-# Create the new classification head on top of the pre-trained base
-x = base_model.output
-x = GlobalAveragePooling2D()(x) # Reduces the spatial dimensions of the features
-x = Dense(512, activation='relu')(x) # A new dense layer with ReLU activation
-x = Dropout(0.5)(x) # Dropout layer to prevent overfitting
-# The output layer size (num_classes) now dynamically includes the new Non_Tea_Leaf class.
-predictions = Dense(num_classes, activation='softmax')(x)
+# 3. Build the new classification head
+model = Sequential([
+    base_model,
+    GlobalAveragePooling2D(), # Reduces feature map size for input to Dense layers
+    Dense(512, activation='relu'),
+    Dropout(0.5), # Regularization to prevent overfitting
+    Dense(NUM_CLASSES, activation='softmax') # Output layer with 9 classes
+])
 
-# Combine the base model and our new head into a single model
-model = Model(inputs=base_model.input, outputs=predictions)
+# 4. Compile the model
+# Use a custom, lower learning rate for fine-tuning the pre-trained weights
+model.compile(
+    optimizer=Adam(learning_rate=0.0001),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
 
-# --- 3. Compile the Model ---
-model.compile(optimizer=Adam(learning_rate=LEARNING_RATE),
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-              metrics=['accuracy'])
+model.summary()
 
-model.summary() # Print a summary of the model architecture, showing layers and parameters
-
-# --- 4. Define Callbacks for Training ---
-checkpoint_filepath = MODEL_SAVE_FILENAME
-model_checkpoint_callback = ModelCheckpoint(
-    filepath=checkpoint_filepath,
-    save_weights_only=False,
-    monitor='val_accuracy',
-    mode='max',
+# 5. Define Callbacks
+# ModelCheckpoint saves the best model based on validation loss/accuracy
+checkpoint = ModelCheckpoint(
+    MODEL_PATH,
+    monitor='loss', # Monitor training loss for best model
     save_best_only=True,
+    mode='min',
     verbose=1
 )
 
-early_stopping_callback = EarlyStopping(
-    monitor='val_accuracy',
-    patience=7,
-    mode='max',
-    verbose=1,
-    restore_best_weights=True
+# EarlyStopping prevents overfitting by stopping training if loss doesn't improve
+early_stopping = EarlyStopping(
+    monitor='loss',
+    patience=5, # Number of epochs with no improvement after which training will be stopped
+    mode='min',
+    restore_best_weights=True,
+    verbose=1
 )
 
-callbacks = [model_checkpoint_callback, early_stopping_callback]
+callbacks_list = [checkpoint, early_stopping]
 
-
-# --- 5. Train the Model ---
-print(f"\n--- Training the Model for {EPOCHS} Epochs ---")
+# 6. Train the model
+print("Starting model training...")
+# REMOVED steps_per_epoch here to allow Keras to auto-calculate the correct number of steps
 history = model.fit(
-    train_ds,
+    train_generator,
     epochs=EPOCHS,
-    validation_data=val_ds,
-    callbacks=callbacks
+    callbacks=callbacks_list
 )
 
-# --- 6. Evaluate the Model (on validation set for final check) ---
-print("\n--- Evaluating the Final Model (best weights restored by EarlyStopping) ---")
-loss, accuracy = model.evaluate(val_ds)
-print(f"Validation Loss: {loss:.4f}")
-print(f"Validation Accuracy: {accuracy:.4f}")
+print(f"\nTraining complete. Best model saved to {MODEL_PATH}")
 
-# The best model is already saved by ModelCheckpoint.
-print(f"\nModel training script finished. The best model is saved as '{MODEL_SAVE_FILENAME}' in the current directory.")
-print("This trained model is now ready to be loaded and used in your FastAPI backend for predictions!")
+# Optional: Unfreeze and fine-tune for better results if time allows
+# base_model.trainable = True
+# model.compile(...)
+# model.fit(...)
