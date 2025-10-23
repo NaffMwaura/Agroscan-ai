@@ -45,13 +45,13 @@ NON_TEA_LEAF_CLASS_NAME = "Other_Non_Tea_Leaf"
 CLASS_NAMES = [
     'Anthracnose', 
     NON_TEA_LEAF_CLASS_NAME, 
-    'algal leaf', 
-    'bird eye spot', 
-    'brown blight', 
-    'gray light', 
-    'healthy', 
-    'red leaf spot', 
-    'white spot' 
+    'Algal Leaf', 
+    'Bird Eye Spot', 
+    'Brown Blight', 
+    'Gray Light', 
+    'Healthy', 
+    'Red Leaf Spot', 
+    'White Spot' 
 ]
 
 # --- RECOMMENDATIONS MAP ---
@@ -107,10 +107,10 @@ class UserLogin(BaseModel):
 # Schemas for ML Prediction and History 
 class SavedScan(BaseModel):
     user_email: str 
-    prediction: str
-    confidence: float
-    recommendation: str 
-    date: Optional[str] = None # DB generates this, but kept for schema consistency
+    diagnosis_result: str
+    confidence_score : float
+    treatment_recommendation: str 
+    scan_date: Optional[str] = None # DB generates this, but kept for schema consistency
 
 class PredictionResponse(BaseModel):
     status: str = Field(..., description="SUCCESS, REJECTED (Non-Tea), or LOW_CONFIDENCE")
@@ -374,7 +374,7 @@ def login_user(user_data: UserLogin, conn: psycopg2.connect = Depends(get_db_con
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed due to server error.")
 
 # --- DB Data Endpoint ---
-@app.get("/api/v1/diseases", tags=["DB Data"], response_model=List[Dict[str, Any]])
+@app.get("/diseases", tags=["DB Data"], response_model=List[Dict[str, Any]])
 def get_disease_list(conn: psycopg2.connect = Depends(get_db_connection)):
     """Fetches a list of known diseases from the database."""
     try:
@@ -406,17 +406,18 @@ async def save_scan_endpoint(scan_data: SavedScan, conn: psycopg2.connect = Depe
         with conn.cursor() as cur:
             cur.execute(
                 sql.SQL("""
-                    INSERT INTO scans (user_id, prediction_name, confidence, recommendation_text)
+                    INSERT INTO scans (user_id, diagnosis_result, confidence_score, treatment_recommendation)
                     VALUES (%s, %s, %s, %s)
                     RETURNING scan_id;
                 """),
-                (user_id, scan_data.prediction, scan_data.confidence, scan_data.recommendation)
+                (user_id, scan_data.diagnosis_result, scan_data.confidence_score, scan_data.treatment_recommendation)
             )
             scan_id = cur.fetchone()[0]
             conn.commit()
             
             return {"message": "Scan saved successfully to PostgreSQL.", "scan_id": scan_id}
             
+  
     except Exception as e:
         conn.rollback()
         print(f"Database insertion error for scan: {e}")
@@ -437,9 +438,9 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
             cur.execute(
                 sql.SQL("""
                     SELECT 
-                        prediction_name as prediction, 
-                        confidence, 
-                        recommendation_text as recommendation,
+                        diagnosis_result as prediction, 
+                        confidence_score as confidence, 
+                        treatment_recommendation,
                         scan_date as date
                     FROM scans 
                     WHERE user_id = %s
