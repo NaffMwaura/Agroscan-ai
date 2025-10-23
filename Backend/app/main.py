@@ -459,6 +459,7 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve scan history.")
 
 
+
 # Main block for running the application
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
