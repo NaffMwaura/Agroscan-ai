@@ -6,6 +6,8 @@ import tensorflow as tf
 from PIL import Image
 from typing import Dict, Any, List, Optional
 import time 
+# NOTE: We use bcrypt to securely hash passwords.
+import bcrypt
 
 # FastAPI and Pydantic
 from fastapi import FastAPI, UploadFile, File, HTTPException, status, Depends
@@ -24,10 +26,12 @@ from tensorflow.keras.models import load_model
 # 1. CONFIGURATION
 # ==============================================================================
 
-# --- DATABASE CONFIGURATION ---
-# IMPORTANT: When deploying, these environment variables MUST be set to your 
-# cloud PostgreSQL database credentials.
-DB_CONFIG = {
+# --- DATABASE CONFIGURATION (Render/Cloud Priority) ---
+# IMPORTANT: Render provides a single DATABASE_URL variable. We prioritize this.
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Fallback configuration for local development if DATABASE_URL is not set
+FALLBACK_DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"), 
     "database": os.getenv("DB_NAME", "AgroscanAI"),
     "user": os.getenv("DB_USER", "postgres"), 
@@ -128,11 +132,22 @@ def initialize_pool():
     global db_pool
     if db_pool is None:
         try:
-            db_pool = psycopg2.pool.SimpleConnectionPool(
-                minconn=1, 
-                maxconn=10, 
-                **DB_CONFIG
-            )
+            if DATABASE_URL:
+                # Use the single connection string provided by Render (best practice)
+                print("Using DATABASE_URL for connection.")
+                db_pool = psycopg2.pool.SimpleConnectionPool(
+                    minconn=1, 
+                    maxconn=10, 
+                    dsn=DATABASE_URL # dsn parameter accepts the full connection URL
+                )
+            else:
+                # Fallback to separate config variables (e.g., for local setup)
+                print("Using individual DB_CONFIG variables for connection (Local/Fallback).")
+                db_pool = psycopg2.pool.SimpleConnectionPool(
+                    minconn=1, 
+                    maxconn=10, 
+                    **FALLBACK_DB_CONFIG
+                )
             print("PostgreSQL connection pool initialized successfully.")
         except Exception as e:
             print(f"Failed to initialize connection pool: {e}")
@@ -167,6 +182,24 @@ def get_user_id_by_email(email: str, conn: psycopg2.connect) -> Optional[int]:
         # Note: Do not rollback here, as this function is called inside other transaction blocks
         print(f"Error fetching user ID for {email}: {e}")
         return None
+        
+def hash_password(password: str) -> str:
+    """Hashes the plain text password using bcrypt."""
+    # Salt is generated randomly each time to prevent rainbow table attacks
+    salt = bcrypt.gensalt()
+    # Hash the password and decode the bytes to string for storage
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verifies a plain text password against a stored hashed password."""
+    try:
+        # Check password. bcrypt handles the salt automatically.
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception as e:
+        print(f"Error during password verification: {e}")
+        return False
+
 
 # ==============================================================================
 # 5. STARTUP & SHUTDOWN EVENTS
@@ -177,6 +210,7 @@ async def load_ml_model():
     """Load the pre-trained TensorFlow/Keras model."""
     global model
     try:
+        # Assuming best_tea_disease_model_v3.h5 is available in the deployment environment
         model = load_model(MODEL_PATH)
         print(f"ML model loaded successfully from {MODEL_PATH}")
     except Exception as e:
@@ -306,9 +340,10 @@ async def predict_disease_endpoint(file: UploadFile = File(...)):
 
 @app.post("/register", tags=["Auth"])
 def register_user(user_data: UserRegistration, conn: psycopg2.connect = Depends(get_db_connection)):
-    """Handles user registration using PostgreSQL."""
+    """Handles user registration using PostgreSQL with password hashing."""
     email = user_data.email
-    hashed_password = user_data.password 
+    # Securely hash the password before storing
+    hashed_password = hash_password(user_data.password)
     
     try:
         with conn.cursor() as cur:
@@ -355,15 +390,18 @@ def login_user(user_data: UserLogin, conn: psycopg2.connect = Depends(get_db_con
                     detail="Invalid credentials."
                 )
             
-            user_id, stored_password = result
+            user_id, stored_hashed_password = result
             
-            if password != stored_password:
+            # Use bcrypt to verify the password against the stored hash
+            if not verify_password(password, stored_hashed_password):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid credentials."
                 )
             
-            mock_token = f"fake_auth_token_for_{email}"
+            # In a real application, you would generate a JWT here. 
+            # For now, we use a mock token.
+            mock_token = f"fake_auth_token_for_{email}" 
             return {"message": "Login successful.", "user_id": user_id, "email": email, "token": mock_token}
 
     except HTTPException as e:
@@ -417,7 +455,7 @@ async def save_scan_endpoint(scan_data: SavedScan, conn: psycopg2.connect = Depe
             
             return {"message": "Scan saved successfully to PostgreSQL.", "scan_id": scan_id}
             
-  
+ 
     except Exception as e:
         conn.rollback()
         print(f"Database insertion error for scan: {e}")
@@ -459,7 +497,8 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve scan history.")
 
 
-
 # Main block for running the application
 if __name__ == "__main__":
+    # When running locally without DATABASE_URL, you can use the FALLBACK_DB_CONFIG
+    # Note: On Render, this block is not executed; the Gunicorn command runs the app.
     uvicorn.run(app, host="0.0.0.0", port=8000)

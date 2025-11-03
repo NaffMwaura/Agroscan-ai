@@ -75,7 +75,7 @@ const formatError = (data: unknown, defaultMessage: string): string => {
         const d = data as { detail?: unknown; error?: string; message?: string };
         if (Array.isArray(d.detail)) {
             return d.detail
-                .map((item: any) => `${item.loc?.slice(-1).join('') || 'field'}: ${item.msg}`)
+                .map((item:any) => `${item.loc?.slice(-1).join('') || 'field'}: ${item.msg}`)
                 .join('; ');
         }
         if (typeof d.detail === 'string') return d.detail;
