@@ -9,6 +9,9 @@ import time
 # NOTE: We use bcrypt to securely hash passwords.
 import bcrypt
 
+# Threading lock for lazy loading the ML model
+import threading 
+
 # FastAPI and Pydantic
 from fastapi import FastAPI, UploadFile, File, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,6 +87,8 @@ app = FastAPI(
 # Global variables
 model = None
 db_pool = None
+# Lock for thread-safe lazy loading
+model_lock = threading.Lock() 
 
 # --- CORS Configuration ---
 origins = ["*"] 
@@ -163,7 +168,8 @@ def get_db_connection():
     start_time = time.time()
     conn = db_pool.getconn()
     elapsed = time.time() - start_time
-    print(f"DATABASE CONNECTION ACQUIRED IN: {elapsed:.4f} seconds")
+    # This print statement shows up in Render logs when DB is successfully accessed!
+    print(f"DATABASE CONNECTION ACQUIRED IN: {elapsed:.4f} seconds") 
 
     try:
         yield conn
@@ -205,21 +211,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # 5. STARTUP & SHUTDOWN EVENTS
 # ==============================================================================
 
-@app.on_event("startup")
-async def load_ml_model():
-    """Load the pre-trained TensorFlow/Keras model."""
-    global model
-    try:
-        # Assuming best_tea_disease_model_v3.h5 is available in the deployment environment
-        model = load_model(MODEL_PATH)
-        print(f"ML model loaded successfully from {MODEL_PATH}")
-    except Exception as e:
-        print(f"ERROR: Could not load the ML model from {MODEL_PATH}. Reason: {e}")
-        model = None 
+# NOTE: Removed the async def load_ml_model() startup event.
+# We will now load the model lazily inside the predict function.
 
 @app.on_event("startup")
 def startup_db_event():
     """Initialize the database connection pool."""
+    # This remains, as DB connection is fast and essential for app health.
     initialize_pool()
 
 @app.on_event("shutdown")
@@ -231,15 +229,30 @@ def shutdown_db_event():
         print("PostgreSQL connection pool closed.")
 
 # ==============================================================================
-# 6. ML PREDICTION CORE LOGIC (UNCHANGED)
+# 6. ML PREDICTION CORE LOGIC (MODIFIED FOR LAZY LOADING)
 # ==============================================================================
 
 async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse:
     """
     Performs image preprocessing and model inference, implementing robustness checks.
+    
+    CRITICAL CHANGE: Model is loaded here, lazily, the first time this function is called.
     """
+    global model
+    
+    # 1. LAZY LOAD MODEL (Executes only on the very first prediction request)
     if model is None:
-        raise HTTPException(status_code=503, detail="ML model not loaded. Server is not ready for predictions.")
+        with model_lock:
+            # Double check inside the lock
+            if model is None:
+                print(f"ATTEMPTING LAZY LOAD OF ML MODEL from {MODEL_PATH}")
+                try:
+                    # Load the model directly here. This is the memory spike.
+                    model = load_model(MODEL_PATH)
+                    print(f"ML model loaded successfully (Lazy Load).")
+                except Exception as e:
+                    print(f"ERROR: Could not lazy load the ML model. Reason: {e}")
+                    raise HTTPException(status_code=503, detail="ML model failed to load during first request.")
 
     try:
         # Load and preprocess the image
@@ -311,16 +324,17 @@ async def read_root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint to ensure the API is running and model/DB are connected."""
-    model_status = "ok" if model is not None else "model_not_loaded"
+    # Model status now reflects lazy loading state
+    model_status = "ok (unloaded)" if model is None else "ok (loaded)"
     db_status = "ok" if db_pool is not None else "db_pool_uninitialized"
     
     message = "API is healthy."
-    if model_status != "ok":
-        message += " ML model failed to load."
     if db_status != "ok":
         message += " DB pool failed to initialize."
+    if model_status == "ok (unloaded)":
+        message += " ML model will load on first /predict call."
 
-    return {"status": "ok" if model_status == "ok" and db_status == "ok" else "degraded",
+    return {"status": "ok" if db_status == "ok" else "degraded",
             "model_status": model_status,
             "db_status": db_status,
             "message": message}
