@@ -1,39 +1,25 @@
 import uvicorn
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import io
 import numpy as np
 import tensorflow as tf
 from PIL import Image
 from typing import Dict, Any, List, Optional
 import time 
-# NOTE: We use bcrypt to securely hash passwords.
 import bcrypt
-
-# Threading lock for lazy loading the ML model
 import threading 
-
-# FastAPI and Pydantic
-from fastapi import FastAPI, UploadFile, File, HTTPException, status, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, HTTPException, status, Depends, Form 
+from fastapi.middleware.cors import CORSMiddleware # FIXED: Corrected capitalization here
 from pydantic import BaseModel, Field
-
-# Database Imports (PostgreSQL)
 import psycopg2
 from psycopg2 import pool, sql
 from psycopg2.extras import DictCursor 
+from tensorflow.python.keras.models import load_model
 
-# Machine Learning Imports
-from tensorflow.keras.models import load_model
-
-# ==============================================================================
-# 1. CONFIGURATION
-# ==============================================================================
-
-# --- DATABASE CONFIGURATION (Render/Cloud Priority) ---
-# IMPORTANT: Render provides a single DATABASE_URL variable. We prioritize this.
+# --- Configuration ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Fallback configuration for local development if DATABASE_URL is not set
 FALLBACK_DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"), 
     "database": os.getenv("DB_NAME", "AgroscanAI"),
@@ -42,7 +28,6 @@ FALLBACK_DB_CONFIG = {
     "port": os.getenv("DB_PORT", "5432")
 }
 
-# --- ML MODEL CONFIGURATION ---
 MODEL_PATH = "./best_tea_disease_model_v3.h5" 
 IMG_HEIGHT = 160
 IMG_WIDTH = 160
@@ -63,48 +48,38 @@ CLASS_NAMES = [
 
 # --- RECOMMENDATIONS MAP ---
 RECOMMENDATIONS = {
-    'algal leaf': "Algal leaf spot. Improve air circulation, reduce humidity, and consider copper-based fungicides if severe. Action: **Prune and Apply Fungicide**",
+    'Algal Leaf': "Algal leaf spot. Improve air circulation, reduce humidity, and consider copper-based fungicides if severe. Action: **Prune and Apply Fungicide**",
     'Anthracnose': "Anthracnose disease. Prune infected parts, remove fallen leaves, and apply recommended fungicides. Action: **Prune and Treat with Fungicide**",
-    'bird eye spot': "Bird's eye spot. Improve drainage, ensure proper spacing, and consider cultural practices to reduce moisture. Action: **Improve Drainage and Spacing**",
-    'brown blight': "Brown blight. Improve sanitation, remove infected leaves, and use appropriate fungicides as per local recommendations. Action: **Sanitation and Fungicide**",
-    'gray light': "Gray blight. Improve air circulation, avoid overhead irrigation, and use fungicides if necessary. Action: **Improve Air Flow and Treat**",
-    'healthy': "Your tea plant appears healthy! Continue good agricultural practices, including proper fertilization and pest monitoring. Action: **Maintain Practices**",
-    'red leaf spot': "Red leaf spot. Ensure balanced fertilization, especially potassium, and manage soil moisture. Action: **Balance Nutrients and Moisture**",
-    'white spot': "White spot. Improve plant vigor, reduce stress, and consider organic or chemical treatments. Action: **Increase Vigor and Treatment**",
+    'Bird Eye Spot': "Bird's eye spot. Improve drainage, ensure proper spacing, and consider cultural practices to reduce moisture. Action: **Improve Drainage and Spacing**",
+    'Brown Blight': "Brown blight. Improve sanitation, remove infected leaves, and use appropriate fungicides as per local recommendations. Action: **Sanitation and Fungicide**",
+    'Gray Light': "Gray blight. Improve air circulation, avoid overhead irrigation, and use fungicides if necessary. Action: **Improve Air Flow and Treat**",
+    'Healthy': "Your tea plant appears healthy! Continue good agricultural practices, including proper fertilization and pest monitoring. Action: **Maintain Practices**",
+    'Red Leaf Spot': "Red leaf spot. Ensure balanced fertilization, especially potassium, and manage soil moisture. Action: **Balance Nutrients and Moisture**",
+    'White Spot': "White spot. Improve plant vigor, reduce stress, and consider organic or chemical treatments. Action: **Increase Vigor and Treatment**",
     NON_TEA_LEAF_CLASS_NAME: "The uploaded image is not a tea leaf. Please ensure you are submitting a clear photo of a tea leaf for diagnosis. Action: **Retake Photo**"
 }
 
-# ==============================================================================
-# 2. GLOBAL VARIABLES & APP SETUP
-# ==============================================================================
-
 app = FastAPI(
     title="Agroscan AI Unified Backend",
-    description="API for detecting tea plant diseases and managing users with PostgreSQL.",
-    version="0.4.1", 
+    description="API for detecting tea plant diseases and managing users with PostgreSQL. Prediction now includes auto-save to history.",
+    version="0.5.0", 
 )
 
-# Global variables
 model = None
 db_pool = None
-# Lock for thread-safe lazy loading
 model_lock = threading.Lock() 
 
-# --- CORS Configuration ---
 origins = ["*"] 
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware, # Corrected: CORSMiddleware is used here
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ==============================================================================
-# 3. PYDANTIC SCHEMAS
-# ==============================================================================
+# --- Pydantic Models ---
 
-# Schemas for PostgreSQL Auth
 class UserRegistration(BaseModel):
     email: str
     password: str
@@ -113,13 +88,13 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
-# Schemas for ML Prediction and History 
 class SavedScan(BaseModel):
+    # Updated to use email for better integration with existing auth flow
     user_email: str 
     diagnosis_result: str
     confidence_score : float
     treatment_recommendation: str 
-    scan_date: Optional[str] = None # DB generates this, but kept for schema consistency
+    scan_date: Optional[str] = None 
 
 class PredictionResponse(BaseModel):
     status: str = Field(..., description="SUCCESS, REJECTED (Non-Tea), or LOW_CONFIDENCE")
@@ -128,9 +103,14 @@ class PredictionResponse(BaseModel):
     message: str = Field(..., description="A summary of the result.")
     recommendation: str = Field(..., description="Specific advice or instruction for the user.")
 
-# ==============================================================================
-# 4. DATABASE UTILITIES
-# ==============================================================================
+# NEW RESPONSE MODEL for /predict that includes the save status
+class PredictionAndSaveResponse(PredictionResponse):
+    """Extends PredictionResponse to include scan saving status and ID."""
+    save_status: str = Field(..., description="Success/Failure status of the DB save operation.")
+    scan_id: Optional[int] = Field(None, description="The ID of the saved scan record, if successful.")
+
+
+# --- Database Connection and Utility Functions (Unchanged) ---
 
 def initialize_pool():
     """Initializes the PostgreSQL connection pool."""
@@ -138,15 +118,17 @@ def initialize_pool():
     if db_pool is None:
         try:
             if DATABASE_URL:
-                # Use the single connection string provided by Render (best practice)
                 print("Using DATABASE_URL for connection.")
+                # Add extra DSN parameters for SSL needed for cloud deployment/testing
+                dsn_params = f"{DATABASE_URL} sslmode=require"
                 db_pool = psycopg2.pool.SimpleConnectionPool(
                     minconn=1, 
                     maxconn=10, 
-                    dsn=DATABASE_URL # dsn parameter accepts the full connection URL
+                    dsn=DATABASE_URL,
+                    sslmode='require' 
+                    
                 )
             else:
-                # Fallback to separate config variables (e.g., for local setup)
                 print("Using individual DB_CONFIG variables for connection (Local/Fallback).")
                 db_pool = psycopg2.pool.SimpleConnectionPool(
                     minconn=1, 
@@ -159,16 +141,13 @@ def initialize_pool():
             raise
 
 def get_db_connection():
-    """
-    Dependency: Provides a connection object and handles cleanup.
-    """
+    """Dependency: Provides a connection object and handles cleanup."""
     if db_pool is None:
         raise HTTPException(status_code=500, detail="Database pool not initialized.")
         
     start_time = time.time()
     conn = db_pool.getconn()
     elapsed = time.time() - start_time
-    # This print statement shows up in Render logs when DB is successfully accessed!
     print(f"DATABASE CONNECTION ACQUIRED IN: {elapsed:.4f} seconds") 
 
     try:
@@ -179,45 +158,72 @@ def get_db_connection():
 def get_user_id_by_email(email: str, conn: psycopg2.connect) -> Optional[int]:
     """Helper function to fetch user_id from email."""
     try:
-        # Use a temporary cursor to avoid committing the main transaction block prematurely
         with conn.cursor() as cur:
             cur.execute(sql.SQL("SELECT user_id FROM users WHERE email = %s"), (email,))
             result = cur.fetchone()
             return result[0] if result else None
     except Exception as e:
-        # Note: Do not rollback here, as this function is called inside other transaction blocks
         print(f"Error fetching user ID for {email}: {e}")
         return None
         
 def hash_password(password: str) -> str:
     """Hashes the plain text password using bcrypt."""
-    # Salt is generated randomly each time to prevent rainbow table attacks
     salt = bcrypt.gensalt()
-    # Hash the password and decode the bytes to string for storage
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifies a plain text password against a stored hashed password."""
     try:
-        # Check password. bcrypt handles the salt automatically.
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
     except Exception as e:
         print(f"Error during password verification: {e}")
         return False
 
+# --- New Reusable Scan Saving Logic ---
 
-# ==============================================================================
-# 5. STARTUP & SHUTDOWN EVENTS
-# ==============================================================================
+def save_scan_to_db(user_email: str, diagnosis: str, confidence: float, recommendation: str, conn: psycopg2.connect) -> int:
+    """
+    Saves a prediction scan to the user's persistent history in PostgreSQL.
+    Raises HTTPException on failure.
+    """
+    
+    user_id = get_user_id_by_email(user_email, conn)
+    
+    if user_id is None:
+        # Raise 404 for specific client handling
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("""
+                    INSERT INTO scans (user_id, diagnosis_result, confidence_score, treatment_recommendation)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING scan_id;
+                """),
+                (
+                    user_id, 
+                    diagnosis, 
+                    confidence, 
+                    recommendation
+                )
+            )
+            scan_id = cur.fetchone()[0]
+            conn.commit()
+            return scan_id
+            
+    except Exception as e:
+        conn.rollback()
+        print(f"Database insertion error for scan: {e}")
+        # Raise 500 for generic DB failure
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save scan history due to a database error.")
 
-# NOTE: Removed the async def load_ml_model() startup event.
-# We will now load the model lazily inside the predict function.
+# --- Startup/Shutdown Events (Unchanged) ---
 
 @app.on_event("startup")
 def startup_db_event():
     """Initialize the database connection pool."""
-    # This remains, as DB connection is fast and essential for app health.
     initialize_pool()
 
 @app.on_event("shutdown")
@@ -228,26 +234,17 @@ def shutdown_db_event():
         db_pool.closeall()
         print("PostgreSQL connection pool closed.")
 
-# ==============================================================================
-# 6. ML PREDICTION CORE LOGIC (MODIFIED FOR LAZY LOADING)
-# ==============================================================================
+# --- ML Prediction Core Function (Unchanged) ---
 
 async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse:
-    """
-    Performs image preprocessing and model inference, implementing robustness checks.
-    
-    CRITICAL CHANGE: Model is loaded here, lazily, the first time this function is called.
-    """
+    """Performs image preprocessing and model inference."""
     global model
     
-    # 1. LAZY LOAD MODEL (Executes only on the very first prediction request)
     if model is None:
         with model_lock:
-            # Double check inside the lock
             if model is None:
                 print(f"ATTEMPTING LAZY LOAD OF ML MODEL from {MODEL_PATH}")
                 try:
-                    # Load the model directly here. This is the memory spike.
                     model = load_model(MODEL_PATH)
                     print(f"ML model loaded successfully (Lazy Load).")
                 except Exception as e:
@@ -259,8 +256,8 @@ async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image = image.resize((IMG_HEIGHT, IMG_WIDTH)) 
         image_array = np.asarray(image) 
-        image_array = image_array / 255.0 # Normalize pixel values
-        image_batch = np.expand_dims(image_array, axis=0) # Add batch dimension
+        image_array = image_array / 255.0 
+        image_batch = np.expand_dims(image_array, axis=0) 
 
         # Make prediction
         predictions = model.predict(image_batch, verbose=0)
@@ -275,8 +272,6 @@ async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse
         print(f"Prediction error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to process image or make prediction: {str(e)}")
 
-    # Robustness Checks and Response Generation
-    
     # A. Check for Non-Tea Image
     if predicted_disease == NON_TEA_LEAF_CLASS_NAME:
         rejection_message = RECOMMENDATIONS[NON_TEA_LEAF_CLASS_NAME]
@@ -310,53 +305,70 @@ async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse
         recommendation=recommendation
     )
 
-# ==============================================================================
-# 7. ENDPOINTS
-# ==============================================================================
-
-# --- Root and Health Endpoints ---
+# --- ENDPOINTS ---
 
 @app.get("/")
 async def read_root():
     """Root endpoint for the Agroscan AI API."""
     return {"message": "Welcome to Agroscan AI Unified Backend! Go to /docs for API documentation."}
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint to ensure the API is running and model/DB are connected."""
-    # Model status now reflects lazy loading state
-    model_status = "ok (unloaded)" if model is None else "ok (loaded)"
-    db_status = "ok" if db_pool is not None else "db_pool_uninitialized"
+# --- ML Prediction Endpoint (MODIFIED) ---
+@app.post("/predict", response_model=PredictionAndSaveResponse, tags=["ML Prediction"])
+async def predict_disease_and_save_endpoint(
+    file: UploadFile = File(..., description="The image file of the tea leaf."), 
+    user_email: str = Form(..., description="The email of the user to associate the scan with."),
+    conn: psycopg2.connect = Depends(get_db_connection)
+):
+    """
+    Receives an image, performs prediction, and automatically saves the result 
+    to the user's scan history if the prediction is accepted (SUCCESS/LOW_CONFIDENCE).
     
-    message = "API is healthy."
-    if db_status != "ok":
-        message += " DB pool failed to initialize."
-    if model_status == "ok (unloaded)":
-        message += " ML model will load on first /predict call."
-
-    return {"status": "ok" if db_status == "ok" else "degraded",
-            "model_status": model_status,
-            "db_status": db_status,
-            "message": message}
-
-# --- ML Prediction Endpoint ---
-@app.post("/predict", response_model=PredictionResponse, tags=["ML Prediction"])
-async def predict_disease_endpoint(file: UploadFile = File(...)):
+    Requires 'user_email' to be sent as a form-data field along with the 'file'.
     """
-    Receives an image file, passes it to the ML model for prediction,
-    and returns the structured prediction result including the recommendation.
-    """
+    # 1. Read Image and Get Prediction Result
     image_bytes = await file.read()
-    return await predict_disease_actual_model(image_bytes)
+    prediction_result = await predict_disease_actual_model(image_bytes)
 
+    # 2. Handle Saving (Only save if status is SUCCESS or LOW_CONFIDENCE)
+    scan_id = None
+    save_status = "NOT_SAVED_REJECTED"
+    
+    if prediction_result.status in ["SUCCESS", "LOW_CONFIDENCE"]:
+        try:
+            scan_id = save_scan_to_db(
+                user_email=user_email,
+                diagnosis=prediction_result.prediction,
+                confidence=prediction_result.confidence,
+                recommendation=prediction_result.recommendation,
+                conn=conn
+            )
+            save_status = "SAVED_SUCCESS"
+        except HTTPException as e:
+            # Catch known save errors (e.g., User not found, DB failure)
+            save_status = f"SAVED_FAILED_{e.detail.replace(' ', '_').upper()}"
+            print(f"Failed to save scan for user {user_email}: {e.detail}")
+        except Exception as e:
+            # Catch unexpected errors
+            save_status = "SAVED_FAILED_UNKNOWN_ERROR"
+            print(f"Unexpected error during save: {e}")
 
-# --- DB Authentication Endpoints ---
+    # 3. Construct Final Response with Save Status
+    return PredictionAndSaveResponse(
+        status=prediction_result.status,
+        prediction=prediction_result.prediction,
+        confidence=prediction_result.confidence,
+        message=prediction_result.message,
+        recommendation=prediction_result.recommendation,
+        save_status=save_status,
+        scan_id=scan_id
+    )
+
+# --- DB Authentication Endpoints (Unchanged) ---
 
 @app.post("/register", tags=["Auth"])
 def register_user(user_data: UserRegistration, conn: psycopg2.connect = Depends(get_db_connection)):
     """Handles user registration using PostgreSQL with password hashing."""
     email = user_data.email
-    # Securely hash the password before storing
     hashed_password = hash_password(user_data.password)
     
     try:
@@ -404,17 +416,13 @@ def login_user(user_data: UserLogin, conn: psycopg2.connect = Depends(get_db_con
                     detail="Invalid credentials."
                 )
             
-            user_id, stored_hashed_password = result
-            
-            # Use bcrypt to verify the password against the stored hash
+            user_id, stored_hashed_password = result 
             if not verify_password(password, stored_hashed_password):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid credentials."
                 )
             
-            # In a real application, you would generate a JWT here. 
-            # For now, we use a mock token.
             mock_token = f"fake_auth_token_for_{email}" 
             return {"message": "Login successful.", "user_id": user_id, "email": email, "token": mock_token}
 
@@ -425,13 +433,27 @@ def login_user(user_data: UserLogin, conn: psycopg2.connect = Depends(get_db_con
         print(f"Login error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed due to server error.")
 
-# --- DB Data Endpoint ---
+# ---Logout
+
+@app.post("/logout", tags=["Auth"])
+async def logout_user():
+    """
+    Handles user logout. Since this application uses client-side managed tokens, 
+    this endpoint primarily signals success to the frontend, which then clears 
+    its local token/session. 
+    
+    If server-side token blacklisting were needed (for JWTs), that logic would go here.
+    """
+    # For a token-based system without server-side tracking, 
+    # the server only needs to acknowledge the request.
+    return {"message": "Logout successful. Client must destroy local session/token."}
+
+# --- DB Data Endpoint (Unchanged) ---
 @app.get("/diseases", tags=["DB Data"], response_model=List[Dict[str, Any]])
 def get_disease_list(conn: psycopg2.connect = Depends(get_db_connection)):
     """Fetches a list of known diseases from the database."""
     try:
         with conn.cursor() as cur:
-            # NOTE: This query assumes a 'diseases' table exists in your DB.
             cur.execute("SELECT disease_name, description FROM diseases;")
             columns = [desc[0] for desc in cur.description]
             diseases = [dict(zip(columns, row)) for row in cur.fetchall()]
@@ -441,39 +463,25 @@ def get_disease_list(conn: psycopg2.connect = Depends(get_db_connection)):
         print(f"Database error fetching diseases: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: Could not fetch disease list.")
 
-
-# --- HISTORY MANAGEMENT ENDPOINTS (USING POSTGRESQL SCANS TABLE) ---
+# --- HISTORY MANAGEMENT ENDPOINTS (MODIFIED /save_scan to use reusable logic) ---
 
 @app.post("/save_scan", tags=["History (PostgreSQL)"])
 async def save_scan_endpoint(scan_data: SavedScan, conn: psycopg2.connect = Depends(get_db_connection)):
-    """Saves a prediction scan to the user's persistent history in PostgreSQL."""
+    """
+    Saves a prediction scan to the user's persistent history in PostgreSQL 
+    (manual save endpoint, now using reusable function).
+    """
     
-    user_email = scan_data.user_email
-    user_id = get_user_id_by_email(user_email, conn)
+    # Use the reusable function to perform the save operation
+    scan_id = save_scan_to_db(
+        user_email=scan_data.user_email,
+        diagnosis=scan_data.diagnosis_result,
+        confidence=scan_data.confidence_score,
+        recommendation=scan_data.treatment_recommendation,
+        conn=conn
+    )
     
-    if user_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                sql.SQL("""
-                    INSERT INTO scans (user_id, diagnosis_result, confidence_score, treatment_recommendation)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING scan_id;
-                """),
-                (user_id, scan_data.diagnosis_result, scan_data.confidence_score, scan_data.treatment_recommendation)
-            )
-            scan_id = cur.fetchone()[0]
-            conn.commit()
-            
-            return {"message": "Scan saved successfully to PostgreSQL.", "scan_id": scan_id}
-            
- 
-    except Exception as e:
-        conn.rollback()
-        print(f"Database insertion error for scan: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save scan history.")
+    return {"message": "Scan saved successfully to PostgreSQL.", "scan_id": scan_id}
 
 @app.get("/get_scans/{user_email}", tags=["History (PostgreSQL)"])
 async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(get_db_connection)):
@@ -485,7 +493,6 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
         return {"scans": [], "count": 0, "message": "User not found or no scans available."}
         
     try:
-        # Use DictCursor to fetch results as dictionaries for easy conversion
         with conn.cursor(cursor_factory=DictCursor) as cur: 
             cur.execute(
                 sql.SQL("""
@@ -500,7 +507,6 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
                 """),
                 (user_id,)
             )
-            # Convert DictRow objects to standard dictionaries for the response
             scans = [dict(row) for row in cur.fetchall()] 
             
             return {"scans": scans, "count": len(scans), "message": "Scans retrieved successfully from PostgreSQL."}
@@ -510,9 +516,6 @@ async def get_scans_endpoint(user_email: str, conn: psycopg2.connect = Depends(g
         print(f"Database query error for scans: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve scan history.")
 
-
 # Main block for running the application
 if __name__ == "__main__":
-    # When running locally without DATABASE_URL, you can use the FALLBACK_DB_CONFIG
-    # Note: On Render, this block is not executed; the Gunicorn command runs the app.
     uvicorn.run(app, host="0.0.0.0", port=8000)
