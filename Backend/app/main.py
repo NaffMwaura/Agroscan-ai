@@ -235,7 +235,7 @@ def load_ml_model():
 def startup_db_event():
     """Initialize the database connection pool."""
     initialize_pool()
-    load_ml_model()
+    # load_ml_model()
 
 @app.on_event("shutdown")
 def shutdown_db_event():
