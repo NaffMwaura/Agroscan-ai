@@ -219,12 +219,23 @@ def save_scan_to_db(user_email: str, diagnosis: str, confidence: float, recommen
         # Raise 500 for generic DB failure
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save scan history due to a database error.")
 
+# Add a global function to load the model
+def load_ml_model():
+    global model
+    try:
+        model = load_model(MODEL_PATH)
+        print(f"ML model loaded successfully (Startup Load).")
+    except Exception as e:
+        print(f"FATAL ERROR: Could not load ML model during startup. Reason: {e}")
+        # Optionally, re-raise to crash the app immediately if the model is mandatory
+        raise
 # --- Startup/Shutdown Events (Unchanged) ---
 
 @app.on_event("startup")
 def startup_db_event():
     """Initialize the database connection pool."""
     initialize_pool()
+    load_ml_model()
 
 @app.on_event("shutdown")
 def shutdown_db_event():
