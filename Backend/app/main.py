@@ -56,12 +56,12 @@ RECOMMENDATIONS = {
     'Healthy': "Your tea plant appears healthy! Continue good agricultural practices, including proper fertilization and pest monitoring. Action: **Maintain Practices**",
     'Red Leaf Spot': "Red leaf spot. Ensure balanced fertilization, especially potassium, and manage soil moisture. Action: **Balance Nutrients and Moisture**",
     'White Spot': "White spot. Improve plant vigor, reduce stress, and consider organic or chemical treatments. Action: **Increase Vigor and Treatment**",
-    NON_TEA_LEAF_CLASS_NAME: "The uploaded image is not a tea leaf. Please ensure you are submitting a clear photo of a tea leaf for diagnosis. Action: **Retake Photo**"
+    NON_TEA_LEAF_CLASS_NAME: "The uploaded image is not a tea leaf. Please ensure you are submitting a clear photo of a tea leaf for diagnosis!. Action: **Retake Photo**"
 }
 
 app = FastAPI(
     title="Agroscan AI Unified Backend",
-    description="API for detecting tea plant diseases and managing users with PostgreSQL. Prediction now includes auto-save to history.",
+    description="API for detecting tea plant diseases and managing users with PostgreSQL/Neon Database. Prediction now includes auto-save to history.",
     version="0.5.0", 
 )
 
