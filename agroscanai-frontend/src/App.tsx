@@ -1,7 +1,5 @@
-// src/App.tsx
-
 import React, { useState, useCallback, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'; // <-- NEW IMPORTS
+import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'; // Added Navigate and useLocation
 
 // Import Types and Constants
 import type { Page, AlertMessageProps } from './types'; 
@@ -13,17 +11,16 @@ import LandingPage from './components/pages/LandingPage';
 import AuthPage from './components/pages/AuthPage';
 import DashboardPage from './components/pages/DashboardPage';
 
-// --- MAIN ROUTER LOGIC (New component to handle routing) ---
+// --- MAIN ROUTER LOGIC ---
 const MainAppLogic: React.FC = () => {
-    // useNavigate hook replaces setCurrentPage for navigation
     const navigate = useNavigate(); 
-    
-    // --- State Initialization (same as before) ---
+    const location = useLocation(); // To get current path for footer
+
+    // --- State Initialization ---
     const initialToken = localStorage.getItem('userToken');
     const initialId = localStorage.getItem('userId');
     const initialEmail = localStorage.getItem('userEmail');
 
-    // Use useMemo to determine the starting state/page based on the current URL
     const [userToken, setUserToken] = useState<string | null>(initialToken);
     const [userId, setUserId] = useState<string | null>(initialId);
     const [userEmail, setUserEmail] = useState<string | null>(initialEmail);
@@ -35,7 +32,7 @@ const MainAppLogic: React.FC = () => {
         "White Spot", "Healthy", "Other Non-Tea Leaf"
     ];
 
-    // --- Handlers now use useNavigate ---
+    // --- Handlers ---
     const handleLoginSuccess = useCallback((userIdArg: string, emailArg: string, tokenArg?: string) => {
         if (tokenArg) {
             localStorage.setItem('userToken', tokenArg);
@@ -45,12 +42,12 @@ const MainAppLogic: React.FC = () => {
         localStorage.setItem('userEmail', emailArg);
         setUserId(userIdArg);
         setUserEmail(emailArg);
-        navigate('/dashboard'); // <-- Navigate to the URL
+        navigate('/dashboard'); 
         setGlobalMessage({ message: `Login successful. Welcome back, user ${userIdArg}!`, type: 'success' });
     }, [navigate]);
 
     const handleLogout = useCallback(() => {
-        // ... (API call if needed)
+        // NOTE: Add call to backend /logout endpoint if required
         
         localStorage.removeItem('userToken');
         localStorage.removeItem('userId');
@@ -58,16 +55,20 @@ const MainAppLogic: React.FC = () => {
         setUserToken(null);
         setUserId(null);
         setUserEmail(null);
-        navigate('/'); // <-- Navigate back to the homepage
+        navigate('/login'); // Redirect to login page on logout
         setGlobalMessage({ message: "You have been successfully logged out.", type: 'success' });
     }, [navigate]);
 
-    // Helper to change page via Navbar/Footer links
+    /**
+     * Helper to change page via Navbar/Footer links.
+     * This function is now mostly redundant but kept for legacy component compatibility.
+     * In the Navbar, Link components should use 'to="/path"' directly.
+     */
     const handlePageChange = useCallback((page: Page) => {
         if (page === 'landing') navigate('/');
         else if (page === 'auth') navigate('/login');
         else if (page === 'dashboard' && userId) navigate('/dashboard');
-        else navigate('/');
+        else navigate('/login');
     }, [navigate, userId]);
     
     // Determine if the current user is logged in
@@ -76,38 +77,49 @@ const MainAppLogic: React.FC = () => {
 
     return (
         <div className="min-h-screen flex flex-col font-sans bg-gray-50">
+            {/* The Navbar will now contain <Link> components pointing to the correct paths */}
             <Navbar setCurrentPage={handlePageChange} userToken={userToken} onLogout={handleLogout} />
-            <main className="flex-grow">
-                {/* 3. Define the routes */}
+            <main className="flex-grow"> 
+                
                 <Routes>
-                    {/* Public Routes */}
+                    {/* 1. Landing Page (Default Route) */}
                     <Route path="/" element={<LandingPage setCurrentPage={handlePageChange} diseaseCategories={diseaseCategories} message={globalMessage} setMessage={setGlobalMessage} />} />
                     
-                    {/* Auth Routes */}
-                    <Route path="/login" element={<AuthPage onLoginSuccess={handleLoginSuccess} />} />
-                    <Route path="/register" element={<AuthPage onLoginSuccess={handleLoginSuccess} />} />
+                    {/* 2. Authentication Pages (Login/Register) */}
+                    {/* If authenticated, redirect them away from the auth pages */}
+                    <Route path="/login" element={isAuthenticated ? (
+                        <Navigate to="/dashboard" replace />
+                    ) : (
+                        <AuthPage onLoginSuccess={handleLoginSuccess} />
+                    )} />
+                    <Route path="/register" element={isAuthenticated ? (
+                        <Navigate to="/dashboard" replace />
+                    ) : (
+                        <AuthPage onLoginSuccess={handleLoginSuccess} />
+                    )} />
 
-                    {/* Protected Dashboard Route */}
+                    {/* 3. Protected Dashboard Route */}
                     <Route 
                         path="/dashboard" 
-                        element={isAuthenticated && userId ? (
+                        element={isAuthenticated ? (
                             <DashboardPage userToken={userToken} userId={userId} userEmail={userEmail || ''} onLogout={handleLogout} />
                         ) : (
-                            <AuthPage onLoginSuccess={handleLoginSuccess} /> // Redirect to login if not authenticated
+                            <Navigate to="/login" replace /> // Redirect unauthenticated users to /login
                         )}
                     />
 
-                    {/* Fallback for 404 - redirects to landing */}
-                    <Route path="*" element={<LandingPage setCurrentPage={handlePageChange} diseaseCategories={diseaseCategories} message={globalMessage} setMessage={setGlobalMessage} />} />
+                    {/* 4. Fallback for 404 (Redirect to landing) */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
-            {/* Display Footer only on landing page or define conditional logic based on path */}
-            {window.location.pathname === '/' && <Footer setCurrentPage={handlePageChange} />}
+            {/* Display Footer only on the Landing Page */}
+            {location.pathname === '/' && <Footer setCurrentPage={handlePageChange} />}
         </div>
     );
 };
 
 // --- WRAPPER COMPONENT ---
+// This wrapper is essential to use the routing hooks like useNavigate and Routes
 const App: React.FC = () => (
     <BrowserRouter>
         <MainAppLogic />
