@@ -138,8 +138,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
   }, [selectedFile, userToken, userEmail, onLogout, fetchSavedScans]);
 
   return (
-    <div className="min-h-screen pt-20 bg-gray-50 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
+  <div className="min-h-screen bg-gray-50 p-4 sm:p-8 mt-24"> 
+        <div className="max-w-7xl mx-auto">
         <header className="mb-8 p-6 bg-white rounded-2xl shadow-xl border-l-8 border-green-600">
           <h1 className="text-4xl font-extrabold text-gray-800 flex items-center space-x-3">
             <Grid className="h-8 w-8 text-green-600" />
