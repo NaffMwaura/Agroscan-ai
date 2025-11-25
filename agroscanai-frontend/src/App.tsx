@@ -10,6 +10,9 @@ import Footer from './components/layout/Footer';
 import LandingPage from './components/pages/LandingPage';
 import AuthPage from './components/pages/AuthPage';
 import DashboardPage from './components/pages/DashboardPage';
+// --- NEW WIDGET IMPORT ---
+import ChatWidget from './components/ui/ChatWidget';
+// -------------------------
 
 // --- CONFIGURATION: 5 Minutes Inactivity Timeout ---
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -17,10 +20,10 @@ const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 // --- MAIN ROUTER LOGIC ---
 const MainAppLogic: React.FC = () => {
-    const navigate = useNavigate(); 
-    const location = useLocation();
+const navigate = useNavigate(); 
+const location = useLocation();
 
-    // --- State Initialization ---
+    // ... (State Initialization and Handlers remain the same) ...
     const initialToken = localStorage.getItem('userToken');
     const initialId = localStorage.getItem('userId');
     const initialEmail = localStorage.getItem('userEmail');
@@ -119,7 +122,6 @@ const MainAppLogic: React.FC = () => {
     }, [navigate]);
 
     const handleLogout = useCallback(() => {
-        // NOTE: The continuous monitor will now handle the cleanup via performLogoutCleanup
         performLogoutCleanup();
     }, [performLogoutCleanup]);
 
@@ -136,19 +138,21 @@ const MainAppLogic: React.FC = () => {
     // Check if the current route should display the footer
     const shouldShowFooter = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/register';
 
+    // FIX 1: Apply padding only if we are on the Dashboard route to avoid the white gap on other pages
+    const isDashboardRoute = location.pathname === '/dashboard';
+    const mainClasses = `flex-grow ${isDashboardRoute ? 'pt-24' : ''}`; // We use pt-24 here because DashboardPage no longer needs the offset.
+
     return (
         <div className="min-h-screen flex flex-col font-sans bg-gray-50">
             <Navbar setCurrentPage={handlePageChange} userToken={userToken} onLogout={handleLogout} /> 
-            {/* FIX: Remove universal pt-32 padding. Components that need spacing (like Dashboard) will handle it internally. */}
-            <main className="flex-grow"> 
+            {/* FIX 2: Apply conditional padding */}
+            <main className={mainClasses}> 
                 
                 <Routes>
                     {/* 1. Landing Page (Default Route) */}
-                    {/* LandingPage should handle its own top margin/padding */}
                     <Route path="/" element={<LandingPage setCurrentPage={handlePageChange} diseaseCategories={diseaseCategories} message={globalMessage} setMessage={setGlobalMessage} />} />
                     
                     {/* 2. Authentication Pages (Login/Register) */}
-                    {/* AuthPage handles its own h-screen layout and needs no top padding */}
                     <Route path="/login" element={isAuthenticated ? (
                         <Navigate to="/dashboard" replace />
                     ) : (
@@ -161,7 +165,6 @@ const MainAppLogic: React.FC = () => {
                     )} />
 
                     {/* 3. Protected Dashboard Route */}
-                    {/* DashboardPage must be updated to include the necessary top padding/margin */}
                     <Route 
                         path="/dashboard" 
                         element={isAuthenticated ? (
@@ -176,6 +179,10 @@ const MainAppLogic: React.FC = () => {
                 </Routes>
             </main>
             {shouldShowFooter && <Footer setCurrentPage={handlePageChange} />}
+
+            {/* --- GLOBAL CHAT WIDGET INTEGRATION --- */}
+            <ChatWidget userToken={userToken} userId={userId} />
+            {/* -------------------------------------- */}
         </div>
     );
 };

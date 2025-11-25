@@ -13,7 +13,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const fetchSavedScans = useCallback(async () => {
-    if (!userEmail) return;
+    // Only attempt fetch if user email is present
+    if (!userEmail) {
+      setResults([]);
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -26,8 +30,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
       });
 
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.scans) {
-        console.warn('fetchSavedScans failed', json);
+      
+      // We check for res.ok AND that 'scans' property exists and is an array
+      if (!res.ok || !json || !Array.isArray(json.scans)) {
+        console.warn('fetchSavedScans failed or returned bad data structure:', json);
+        setResults([]); // Clear results on failure
         return;
       }
 
@@ -41,10 +48,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
       };
 
       const serverResults = (json.scans as ServerScan[]).map((s) => ({
-        filename: s.image_link?.split('/').pop() || 'saved-scan',
+        // Use scan_id as a fallback filename if no link exists
+        filename: `Scan ID: ${s.scan_id || 'N/A'}`,
         prediction: s.diagnosis_result || 'Unknown',
         confidence: typeof s.confidence_score === 'number' ? s.confidence_score : 0,
-        timestamp: s.scan_date || new Date().toLocaleString(),
+        // FIX: Ensure timestamp formatting handles database UTC vs local time
+        timestamp: s.scan_date ? new Date(s.scan_date).toLocaleString() : new Date().toLocaleString(),
         recommendation: s.treatment_recommendation,
         image: s.image_link,
         scan_id: s.scan_id
@@ -53,14 +62,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
       setResults(serverResults);
     } catch (err) {
       console.error('Error fetching saved scans', err);
+      setResults([]); // Clear results on network error
     } finally {
       setIsLoading(false);
     }
   }, [userEmail, userToken]);
 
-  useEffect(() => {
-    fetchSavedScans();
-  }, [fetchSavedScans]);
+useEffect(() => {
+    // This correctly runs immediately after login (when userEmail becomes set) to fetch history
+    if (userEmail) {
+        fetchSavedScans();
+    }
+    // We explicitly depend on userEmail to guarantee fetch is called upon component mount/remount after login
+}, [userEmail, fetchSavedScans]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -84,7 +98,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("user_email", userEmail); // Include user_email in form data
+      formData.append("user_email", userEmail); 
 
       console.log('Uploading to /predict...');
       const predictRes = await fetch(`${API_BASE_URL}/predict`, {
@@ -138,8 +152,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
   }, [selectedFile, userToken, userEmail, onLogout, fetchSavedScans]);
 
   return (
-  <div className="min-h-screen bg-gray-50 p-4 sm:p-8 mt-24"> 
-        <div className="max-w-7xl mx-auto">
+    // FIX: Increased margin-top to mt-28 to ensure Navbar height is fully cleared.
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8 mt-28"> 
+      <div className="max-w-7xl mx-auto">
         <header className="mb-8 p-6 bg-white rounded-2xl shadow-xl border-l-8 border-green-600">
           <h1 className="text-4xl font-extrabold text-gray-800 flex items-center space-x-3">
             <Grid className="h-8 w-8 text-green-600" />
@@ -214,17 +229,20 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
                         <IconLeaf className={`h-8 w-8 flex-shrink-0 ${result.prediction === 'Healthy' ? 'text-green-600' : 'text-red-500'}`} />
                         <div>
                           <p className="text-lg font-semibold text-gray-800">{result.prediction}</p>
-                          <p className="text-xs text-gray-500">{result.filename} | Scanned: {result.timestamp}</p>
+                          {/* FIX: Ensure database timestamp is displayed correctly */}
+                          <p className="text-xs text-gray-500">Scanned: {result.timestamp}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-green-700">{(result.confidence * 100).toFixed(1)}<span className="text-lg font-normal">%</span></p>
+                        <p className={`text-2xl font-bold ${result.confidence >= 0.7 ? 'text-green-700' : 'text-yellow-600'}`}>
+                          {(result.confidence * 100).toFixed(1)}<span className="text-lg font-normal">%</span>
+                        </p>
                         <p className="text-xs text-gray-500">Confidence</p>
                       </div>
                     </div>
 
                     {result.message && (
-                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                      <div className={`mt-2 p-3 rounded text-sm ${result.status === 'LOW_CONFIDENCE' ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-gray-100 border border-gray-200 text-gray-700'}`}>
                         {result.message}
                       </div>
                     )}

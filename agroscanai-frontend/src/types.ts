@@ -1,4 +1,7 @@
 export const API_BASE_URL = 'http://127.0.0.1:8000' ; 
+export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
+export const GEMINI_API_KEY = ''; 
+export const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export type Page = 'landing' | 'auth' | 'dashboard';
 
