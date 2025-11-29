@@ -6,7 +6,7 @@ import aiAnalysisImage from '../../assets/ai.jpg';
 import {  IconUploadInternal, IconMicroscope, IconCheckCircleInternal, Grid } from '../ui/Icons';
 import DelayedLink from '../ui/DelayedLink'; 
 // NEW: Import your local tea farm background images
-import teaFarmBg1 from '../../assets/bg-1.jfif'; 
+import teaFarmBg1 from '../../assets/bg-1.jpg'; 
 import teaFarmBg2 from '../../assets/bg-2.jpg'; 
 import teaFarmBg3 from '../../assets/bg-3.jpeg'; 
 import teaFarmBg4 from '../../assets/bg-4.jpg';
@@ -20,7 +20,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
     teaFarmBg2,
     teaFarmBg3,
     teaFarmBg4,
-    // Add more image imports here if you have them!
   ];
 
   useEffect(() => {
@@ -37,7 +36,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
     }, 5000); // Change image every 5 seconds (5000ms)
 
     return () => clearInterval(interval); // Cleanup interval on component unmount
-  }, [backgroundImages.length]); // Re-run if image array length changes
+  }, [backgroundImages.length]); 
 
   return (
     <div className="min-h-full">
@@ -49,32 +48,32 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
       <header 
         className="pt-32 pb-20 text-white shadow-2xl relative overflow-hidden" 
         style={{ 
-            minHeight: '600px'
+            minHeight: '700px', 
         }}
       > 
         {/* Background Image Container with Transitions */}
         <div 
-            className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out transform" // Added transition and transform
+            className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out transform" 
             style={{ 
                 backgroundImage: `url(${backgroundImages[currentBgIndex]})`, 
-                // This 'translate-x-0' will be dynamically adjusted by the animation if needed, for 'left' transition
-                // For a simple fade, `opacity` transition is sufficient.
-                // For slide, we might need more complex keyframe animations or direct style manipulation.
-                // Let's stick to a fade for now, as direct `translateX` via `backgroundImage` is not straightforward.
-                // If you want a literal slide effect, we would need multiple <img> tags or a single image with CSS keyframes.
-                // For a "transitioning to the left side" illusion, we'll use `background-position` and `scale`.
-                backgroundPosition: `center ${-currentBgIndex * 10}%`, // Slight shift for illusion
-                backgroundSize: '110%', // Start slightly zoomed for movement effect
+                // FIX: Ensure the background always covers 100% of the container. 
+                // We will use 100% width and 100% height, and let object-fit-like properties handle the rest.
+                // We rely on the transform scale for the zoom/move effect.
+                backgroundSize: 'cover', // Use cover to guarantee full fill
+                backgroundPosition: 'center', 
+                // FIX: Apply a slight transform based on index to create the movement illusion without exposing edges.
+                // We apply a slight scale (1.05) to ensure we always have content outside the container edges.
+                transform: `scale(1.05) translateX(${currentBgIndex % 2 === 0 ? '0%' : '-2%'})`, 
             }}
         ></div>
 
         {/* Dark Overlay for Text Contrast */}
-        <div className="absolute inset-0 bg-green-950 opacity-90"></div>
+        <div className="absolute inset-0 bg-green-150 opacity-70"></div> {/* Paler color/reduced opacity (70%) */}
 
-        <div className="max-w-6xl mx-auto text-left px-8 relative z-10">
+        <div className="max-w-6xl mx-auto text-left px-8 relative z-10 pt-16 pb-20"> {/* Increased internal spacing */}
           
           {/* Enhanced Typography & Hierarchy */}
-          <p className="text-sm uppercase tracking-widest text-green-300 mb-2">TRANSFORMING CROP MANAGEMENT</p>
+          <p className="text-sm uppercase tracking-widest text-shadow-blue-50  mb-2">TRANSFORMING CROP MANAGEMENT</p>
           <h1 className="text-7xl font-extrabold mb-4 tracking-tight leading-tight max-w-4xl">
              Your Crop is Sick? <br /> We'll Find the <span className="text-cyan-400">Medicine</span>
           </h1>
@@ -119,14 +118,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
       </header>
 
       {/* 3 Steps Section (How It Works Anchor) */}
-      <section id="how-it-works" className="py-24 bg-gray-50 border-b border-gray-200">
+      <section id="how-it-works" className="py-32 bg-green-900 border-b border-green-800"> {/* FIX 3/4: Unified dark background & increased spacing */}
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-extrabold text-center text-gray-800 mb-12">Diagnose in Three Simple Steps</h2>
+          <h2 className="text-4xl font-extrabold text-center text-white mb-16">Diagnose in Three Simple Steps</h2>
           
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-12 p-8 rounded-xl bg-white shadow-2xl border-l-8 border-green-600">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-12 p-8 rounded-xl bg-green-800/80 shadow-2xl border-l-8 border-amber-500">
             
             {/* Diagram/Visual Area */}
-            <div className="lg:w-1/2 p-6 bg-white rounded-lg border-b-8 border-amber-500 shadow-xl">
+            <div className="lg:w-1/2 p-6 bg-green-900 rounded-lg border-b-8 border-amber-500 shadow-xl">
               <img 
                   src={aiAnalysisImage} 
                   alt="AI Analysis Visual" 
@@ -135,26 +134,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
             </div>
             
             {/* Steps Content Area */}
-            <div className="lg:w-1/2 space-y-8 text-left">
+            <div className="lg:w-1/2 space-y-8 text-left text-green-100">
               <div className="flex items-start space-x-4">
-                <span className="text-4xl font-black text-green-600">1.</span>
+                <span className="text-4xl font-black text-amber-500">1.</span>
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-800 mb-1 flex items-center space-x-2"><IconUploadInternal className="h-6 w-6 text-green-600" /> <span>Upload & Scan</span></h3>
-                  <p className="text-gray-600">Securely upload a clear photo of the tea leaf. Our system automatically pre-processes the image for optimal analysis.</p>
+                  <h3 className="text-2xl font-bold text-white mb-1 flex items-center space-x-2"><IconUploadInternal className="h-6 w-6 text-cyan-400" /> <span>Upload & Scan</span></h3>
+                  <p className="text-green-200">Securely upload a clear photo of the tea leaf. Our system automatically pre-processes the image for optimal analysis.</p>
                 </div>
               </div>
               <div className="flex items-start space-x-4">
-                <span className="text-4xl font-black text-green-600">2.</span>
+                <span className="text-4xl font-black text-amber-500">2.</span>
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-800 mb-1 flex items-center space-x-2"><IconMicroscope className="h-6 w-6 text-green-600" /> <span>Instant Diagnosis</span></h3>
-                  <p className="text-gray-600">Our deep learning model identifies the exact disease and provides a risk confidence score within seconds.</p>
+                  <h3 className="text-2xl font-bold text-white mb-1 flex items-center space-x-2"><IconMicroscope className="h-6 w-6 text-cyan-400" /> <span>Instant Diagnosis</span></h3>
+                  <p className="text-green-200">Our deep learning model identifies the exact disease and provides a risk confidence score within seconds.</p>
                 </div>
               </div>
               <div className="flex items-start space-x-4">
-                <span className="text-4xl font-black text-green-600">3.</span>
+                <span className="text-4xl font-black text-amber-500">3.</span>
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-800 mb-1 flex items-center space-x-2"><IconCheckCircleInternal className="h-6 w-6 text-green-600" /> <span>Action Plan</span></h3>
-                  <p className="text-gray-600">Receive specific, tailored advice on treatment, nutrient balance, and prevention measures.</p>
+                  <h3 className="text-2xl font-bold text-white mb-1 flex items-center space-x-2"><IconCheckCircleInternal className="h-6 w-6 text-cyan-400" /> <span>Action Plan</span></h3>
+                  <p className="text-green-200">Receive specific, tailored advice on treatment, nutrient balance, and prevention measures.</p>
                 </div>
               </div>
             </div>
@@ -163,34 +162,34 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
       </section>
 
       {/* New Section: Core Features (Features Anchor) */}
-      <section id="features" className="py-24 bg-green-50 border-b border-gray-200">
+      <section id="features" className="py-32 bg-green-950 border-b border-green-800"> {/* FIX 3/4: Unified dark background & increased spacing */}
         <div className="max-w-7xl mx-auto px-4 text-center">
-            <h2 className="text-4xl font-extrabold text-gray-800 mb-4">Core Features Driving Better Yields</h2>
-            <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">Leverage AI for smarter, data-driven decisions on your farm.</p>
+            <h2 className="text-4xl font-extrabold text-white mb-4">Core Features Driving Better Yields</h2>
+            <p className="text-xl text-green-200 mb-16 max-w-3xl mx-auto">Leverage AI for smarter, data-driven decisions on your farm.</p>
             
             {/* Feature Grid */}
             <div className="grid md:grid-cols-3 gap-8 text-left">
-                <div id="feature-1" className="p-6 bg-white rounded-xl shadow-xl border-t-4 border-green-600 hover:shadow-2xl transition">
-                    <Grid className="w-8 h-8 text-green-600 mb-3" />
+                <div id="feature-1" className="p-6 bg-green-800 rounded-xl shadow-xl border-t-4 border-green-400 hover:shadow-2xl transition text-white">
+                    <Grid className="w-8 h-8 text-green-400 mb-3" />
                     <h3 className="text-xl font-bold mb-2">Real-time Disease Tracking</h3>
-                    <p className="text-gray-600">Identify illnesses like Red Leaf Spot or Anthracnose within seconds of uploading the leaf image.</p>
+                    <p className="text-green-200">Identify illnesses like Red Leaf Spot or Anthracnose within seconds of uploading the leaf image.</p>
                 </div>
-                <div id="feature-2" className="p-6 bg-white rounded-xl shadow-xl border-t-4 border-amber-500 hover:shadow-2xl transition">
+                <div id="feature-2" className="p-6 bg-green-800 rounded-xl shadow-xl border-t-4 border-amber-500 hover:shadow-2xl transition text-white">
                     <IconMicroscope className="w-8 h-8 text-amber-500 mb-3" />
                     <h3 className="text-xl font-bold mb-2">Confidence Scoring</h3>
-                    <p className="text-gray-600">Get a clear percentage confidence score to assess risk before applying expensive treatments.</p>
+                    <p className="text-green-200">Get a clear percentage confidence score to assess risk before applying expensive treatments.</p>
                 </div>
-                <div id="feature-3" className="p-6 bg-white rounded-xl shadow-xl border-t-4 border-cyan-500 hover:shadow-2xl transition">
+                <div id="feature-3" className="p-6 bg-green-800 rounded-xl shadow-xl border-t-4 border-cyan-500 hover:shadow-2xl transition text-white">
                     <IconCheckCircleInternal className="w-8 h-8 text-cyan-500 mb-3" />
                     <h3 className="text-xl font-bold mb-2">Actionable Recommendations</h3>
-                    <p className ="text-gray-600">Receive specific, tailored advice on pruning, soil balance, and fungicide application based on the diagnosis.</p>
+                    <p className="text-green-200">Receive specific, tailored advice on pruning, soil balance, and fungicide application based on the diagnosis.</p>
                 </div>
             </div>
         </div>
       </section>
 
       {/* New Section: Why Us & Contact Anchor */}
-      <section id="why-us" className="py-24 bg-green-900 border-b border-green-700">
+      <section id="why-us" className="py-32 bg-green-900"> {/* FIX 4: Increased spacing */}
         <div className="max-w-7xl mx-auto px-4 text-center">
              <h2 className="text-4xl font-extrabold text-white mb-4">Why Choose AgroScan AI?</h2>
              <p className="text-xl text-green-200 mb-12 max-w-3xl mx-auto">We combine deep learning stability with ease of use for the local farmer.</p>
@@ -199,7 +198,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
              <div className="p-10 bg-green-700 rounded-xl shadow-2xl border-b-2 border-amber-500" id="contact">
                  <h3 className="text-3xl font-bold text-amber-500 mb-4">Ready to Transform Your Farm?</h3>
                  <p className="text-lg text-green-200 mb-6">Contact our support team for specialized regional advice or personalized integration.</p>
-                 <Link to="/register" className="inline-block py-3 px-8 bg-cyan-500 text-green-900 font-semibold rounded-lg hover:bg-cyan-400 transition">
+                 <Link to="/register" className="inline-block py-3 px-8 bg-amber-500 text-black font-semibold rounded-lg hover:bg-amber-200 transition">
                      Join Now
                  </Link>
              </div>
