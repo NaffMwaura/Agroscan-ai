@@ -1,19 +1,93 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import type { NavbarProps } from '../../types';
-import { IconLeaf, LogOut, Grid } from '../ui/Icons'; 
+import React, { useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
+import type { NavbarProps } from '../../types'; // Ensure Page type is available
+import { IconLeaf, LogOut, Grid } from '../ui/Icons';
 
+// FIX: Removed setCurrentPage from NavbarProps destructuring to fix the TypeScript error
 const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
+    const navigate = useNavigate();
+
+    // Custom handler to perform a navigation delay (500ms for Login/Register)
+    const handleDelayedNavigation = useCallback((e: React.MouseEvent, path: string) => {
+        e.preventDefault(); // Prevent instant navigation
+        
+        const target = e.currentTarget;
+        
+        // 1. Apply active state/visual delay feedback immediately
+        // Applied specific transition class that reverts immediately upon navigation
+        target.classList.add('bg-green-700', 'cursor-wait');
+
+        setTimeout(() => {
+            // 2. Remove visual feedback before navigating 
+            // We use setTimeout to ensure the visual state lasts for the intended duration
+            // and then clear the active classes immediately before navigation takes over.
+            
+            target.classList.remove('bg-green-700', 'cursor-wait', 'opacity-70'); 
+            
+            // 3. Navigate after delay
+            navigate(path);
+        }, 500); // 500ms delay
+
+    }, [navigate]);
+    
+    // Helper function to handle internal anchor links
+    const scrollToSection = useCallback((e: React.MouseEvent, id: string) => {
+        e.preventDefault();
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, []);
+
+    
     return (
-        <nav className="bg-green-800 p-4 shadow-lg fixed top-0 left-0 right-0 z-20">
+        // FIX 1: Increased vertical padding to make the navbar wider downwards (taller)
+        <nav className="bg-green-800 py-5 px-5 shadow-lg fixed top-0 left-0 right-0 z-20">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
                 
-                {/* Link to Homepage (Route: /) */}
-                <Link to="/" className="text-white text-2xl font-extrabold flex items-center space-x-2 cursor-pointer">
-                    <IconLeaf className="text-amber-500 h-6 w-6" />
+                {/* 1. Logo and App Name (Left) */}
+                <Link to="/" className="text-white text-4xl font-extrabold flex items-center space-x-5 cursor-pointer">
+                    <IconLeaf className="text-amber-500 h-8 w-10" />
                     <span>AgroScan AI</span>
                 </Link>
 
+                {/* 2. Central Navigation Links (Anchor Links) */}
+                <div className="hidden md:flex items-center space-x-16 mx-auto absolute left-1/2 transform -translate-x-1/2">
+                    
+                    <Link 
+                        to="/#how-it-works" 
+                        onClick={(e) => scrollToSection(e, 'how-it-works')} 
+                        className="text-white text-base py-2 hover:text-amber-300 transition-colors"
+                    >
+                        How It Works
+                    </Link>
+                    
+                    <Link 
+                        to="/#features" 
+                        onClick={(e) => scrollToSection(e, 'features')}
+                        className="text-white text-base py-2 hover:text-amber-300 transition-colors"
+                    >
+                        Features
+                    </Link>
+                    
+                    <Link 
+                        to="/#why-us" 
+                        onClick={(e) => scrollToSection(e, 'why-us')}
+                        className="text-white text-base py-2 hover:text-amber-300 transition-colors"
+                    >
+                        Why Choose Us
+                    </Link>
+                    
+                    <Link 
+                        to="/#contact" 
+                        onClick={(e) => scrollToSection(e, 'contact')}
+                        className="text-white text-base py-2 hover:text-amber-300 transition-colors"
+                    >
+                        Contact
+                    </Link>
+                </div>
+
+                {/* 3. Auth Buttons (Right) */}
                 <div className="flex items-center space-x-4">
                     {userToken ? (
                         // Display Dashboard and Logout buttons if authenticated
@@ -30,14 +104,22 @@ const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
                             </button>
                         </>
                     ) : (
-                        // Display Login and Register links
+                        // Display Login and Register links (using manual delay logic)
                         <>
-                            {/* FIX: Link to /login path */}
-                            <Link to="/login" className="px-4 py-2 text-white font-bold rounded-lg transition-colors duration-200 hover:bg-green-700">
+                            {/* Login Button with delay */}
+                            <Link 
+                                to="/login" 
+                                onClick={(e) => handleDelayedNavigation(e, '/login')}
+                                className="px-4 py-2 text-white font-bold rounded-lg transition-colors duration-200 hover:bg-green-700"
+                            >
                                 Login
                             </Link>
-                            {/* FIX: Link to /register path */}
-                            <Link to="/register" className="px-4 py-2 bg-amber-500 text-green-900 hover:bg-amber-400 font-bold rounded-lg shadow-md transition-colors duration-200">
+                            {/* Register Button with delay */}
+                            <Link 
+                                to="/register" 
+                                onClick={(e) => handleDelayedNavigation(e, '/register')}
+                                className="px-4 py-2 bg-amber-500 text-green-900 hover:bg-amber-400 font-bold rounded-lg shadow-md transition-colors duration-200"
+                            >
                                 Register
                             </Link>
                         </>
@@ -47,6 +129,5 @@ const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
         </nav>
     );
 };
-
 
 export default Navbar;
