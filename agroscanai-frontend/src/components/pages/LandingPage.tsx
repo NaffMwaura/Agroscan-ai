@@ -73,7 +73,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
         <div className="max-w-6xl mx-auto text-left px-8 relative z-10 pt-16 pb-20"> {/* Increased internal spacing */}
           
           {/* Enhanced Typography & Hierarchy */}
-          <p className="text-sm uppercase tracking-widest text-shadow-blue-50  mb-2">TRANSFORMING CROP MANAGEMENT</p>
+          <p className="text-sm uppercase tracking-widest text-blue-  mb-2">TRANSFORMING CROP MANAGEMENT</p>
           <h1 className="text-7xl font-extrabold mb-4 tracking-tight leading-tight max-w-4xl">
              Your Crop is Sick? <br /> We'll Find the <span className="text-cyan-400">Medicine</span>
           </h1>
@@ -85,7 +85,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ message, setMessage }) => {
           <div className="flex space-x-4 mb-10">
                 <DelayedLink 
                   to="/login" 
-                  className="bg-cyan-500 text-gray-900 font-bold py-3 px-8 rounded-lg text-lg shadow-xl transform transition duration-300 hover:bg-cyan-400 flex items-center justify-center space-x-2"
+                  className="bg-cyan-200 text-gray-900 font-bold py-3 px-8 rounded-lg text-lg shadow-xl transform transition duration-300 hover:bg-cyan-400 flex items-center justify-center space-x-2"
                   delayMs={500}
                 >
                   Start Free Diagnosis
