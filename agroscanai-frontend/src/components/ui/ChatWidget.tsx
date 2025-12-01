@@ -1,34 +1,8 @@
 import React, { useState } from 'react';
-import {  X,  Phone, Bot } from 'lucide-react'; // FIX: Added Bot import
+import {  X,  Phone, Bot } from 'lucide-react'; 
 import { Link } from 'react-router-dom';
-//import { GEMINI_API_URL, GEMINI_API_KEY } from '../../types'; 
-
-// --- PLACEHOLDER TYPES (Required for compilation) ---
-// FIX: Removed unused interface, as ChatbotComponent defines its own internal Message type.
-// interface Message {
-//   id: number;
-//   text: string;
-//   sender: 'user' | 'ai';
-//   sources?: Array<{ uri: string; title: string }>;
-// }
-// Placeholder for ChatbotComponent (actual logic is complex, keep as separate file)
-const ChatbotComponent: React.FC = () => {
-    // NOTE: This component should contain the full chat logic you provided earlier.
-    // Ensure the inner div uses h-full and flex-grow for vertical spacing.
-    return (
-        <div className="flex flex-col h-full bg-white">
-            <div className="flex-grow p-4 space-y-3 overflow-y-auto">
-                <p className="text-gray-500 text-center text-sm">Start the conversation below.</p>
-                {/* Simplified Chatbot rendering logic here */}
-            </div>
-            <div className="p-3 border-t border-gray-200">
-                 {/* Simplified Input for demonstration */}
-                 <input type="text" placeholder="Type your message..." className="w-full p-2 border rounded-lg" disabled={true} />
-            </div>
-        </div>
-    );
-};
-// ----------------------------------------------------
+// NOTE: We assume ChatbotComponent is imported correctly from './ChatbotComponent'
+import ChatbotComponent from './ChatbotComponent';
 
 interface ChatWidgetProps {
     userToken: string | null;
@@ -49,7 +23,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ userToken, userId }) => {
             // Display login prompt if not authenticated
             return (
                 <div className="flex flex-col items-center justify-center h-full p-6 text-center" style={{ minHeight: '350px' }}>
-                    <Bot className="w-12 h-12 text-green-600 mb-4" /> {/* FIX: Bot is now recognized */}
+                    <Bot className="w-12 h-12 text-green-600 mb-4" /> 
                     <h4 className="text-xl font-bold text-gray-800 mb-2">Login Required</h4>
                     <p className="text-gray-600 mb-6">
                         Please log in or register to chat with AgroBot.
@@ -67,7 +41,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ userToken, userId }) => {
         }
         
         // Render the full chatbot component if authenticated
-        return <ChatbotComponent />;
+        return <ChatbotComponent />; // This is the component with the working input field
     };
 
     return (
@@ -105,7 +79,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ userToken, userId }) => {
                 ) : (
                     // Button when chat is closed (WhatsApp style)
                     <div className="flex items-center space-x-2">
-                        {/* WhatsApp Icon SVG (Using Phone as a close proxy to the requested icon) */}
                         <Phone className="h-5 w-5" />
                         <span className="text-sm">Chat with us</span>
                     </div>

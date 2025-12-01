@@ -5,7 +5,7 @@ import AlertMessage from '../ui/Alertmessage';
 import aiAnalysisImage from '../../assets/ai.jpg'; 
 import {  IconUploadInternal, IconMicroscope, IconCheckCircleInternal, Grid } from '../ui/Icons';
 import DelayedLink from '../ui/DelayedLink'; 
-// NEW: Import your local tea farm background images
+// local tea farm background images
 import teaFarmBg1 from '../../assets/bg-1.jpg'; 
 import teaFarmBg2 from '../../assets/bg-2.jpg'; 
 import teaFarmBg3 from '../../assets/bg-3.jpeg'; 

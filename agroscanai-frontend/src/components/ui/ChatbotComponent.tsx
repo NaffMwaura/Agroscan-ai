@@ -1,50 +1,21 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, Search } from 'lucide-react';
+import { Send, Loader2,  Search,} from 'lucide-react';
 import { GEMINI_API_URL, GEMINI_API_KEY } from '../../types';
 
-// --- NEW TYPE DEFINITIONS FOR API RESPONSE ---
-interface Source {
-    uri: string;
-    title: string;
-}
-
-interface GroundingAttribution {
-    web?: Source;
-}
-
-interface GroundingMetadata {
-    groundingAttributions?: GroundingAttribution[];
-}
-
-interface CandidatePart {
-    text: string;
-}
-
-interface CandidateContent {
-    parts?: CandidatePart[];
-}
-
-interface Candidate {
-    content?: CandidateContent;
-    groundingMetadata?: GroundingMetadata;
-}
-
-interface GeminiResponse {
-    candidates?: Candidate[];
-}
-// --- END NEW TYPE DEFINITIONS ---
-
-interface Message {
-  id: number;
-  text: string;
-  sender: 'user' | 'ai';
-  sources?: Array<Source>;
-}
+// --- TYPE DEFINITIONS ---
+interface Source { uri: string; title: string; }
+interface GroundingAttribution { web?: Source; }
+interface GroundingMetadata { groundingAttributions?: GroundingAttribution[]; }
+interface CandidatePart { text: string; }
+interface CandidateContent { parts?: CandidatePart[]; }
+interface Candidate { content?: CandidateContent; groundingMetadata?: GroundingMetadata; }
+interface GeminiResponse { candidates?: Candidate[]; }
+interface Message { id: number; text: string; sender: 'user' | 'ai' | 'system'; sources?: Array<Source>; }
+// --- END TYPE DEFINITIONS ---
 
 const systemPrompt = "You are AgroBot, an expert agricultural advisor specializing in tea crop health, farming techniques, and general agronomy. Provide clear, concise, and helpful answers. Always use Google Search for current information when discussing best practices, market trends, or recent events. Keep responses professional and practical for farmers.";
 
 // Utility function for exponential backoff during API calls
-// Payload is still 'any' because the type is complex and defined locally before sending
 const fetchWithBackoff = async (url: string, payload: unknown, maxRetries = 5) => {
   let delay = 1000;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -56,15 +27,12 @@ const fetchWithBackoff = async (url: string, payload: unknown, maxRetries = 5) =
       });
 
       if (response.ok) {
-        // Return type is now GeminiResponse
         return await response.json() as GeminiResponse;
       } else if (response.status === 429) {
-        // Rate limit error, retry after delay
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
+        delay *= 2; 
         continue;
       } else {
-        // Other non-retriable error
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`API failed with status ${response.status}: ${JSON.stringify(errorData)}`);
       }
@@ -110,11 +78,15 @@ const ChatbotComponent: React.FC = () => {
         },
       };
       
-      const apiUrl = `${GEMINI_API_URL}${GEMINI_API_KEY ? `?key=${GEMINI_API_KEY}` : ''}`;
+      const keyQuery = GEMINI_API_KEY ? `?key=${GEMINI_API_KEY}` : '';
+      const apiUrl = `${GEMINI_API_URL}${keyQuery}`;
       
-      // Result is now type-checked as GeminiResponse
-      const result = await fetchWithBackoff(apiUrl, payload) as GeminiResponse;
+      const result = await fetchWithBackoff(apiUrl, payload);
 
+      if (!result) {
+          throw new Error("Empty response received from AI service after retries.");
+      }
+      
       const candidate = result.candidates?.[0];
       const aiResponseText = candidate?.content?.parts?.[0]?.text || "Sorry, I encountered an issue generating a response.";
       
@@ -124,12 +96,11 @@ const ChatbotComponent: React.FC = () => {
       
       if (groundingMetadata && groundingMetadata.groundingAttributions) {
           sources = groundingMetadata.groundingAttributions
-              // FIX: Attr is now explicitly GroundingAttribution type
               .map((attr: GroundingAttribution) => ({ 
                   uri: attr.web?.uri || '',
                   title: attr.web?.title || '',
               }))
-              .filter(source => source.uri && source.title); // FIX: source is now type Source
+              .filter(source => source.uri && source.title);
       }
 
       const aiMessage: Message = {
@@ -146,7 +117,7 @@ const ChatbotComponent: React.FC = () => {
       const errorMessage: Message = {
         id: Date.now() + 1,
         text: "I am currently unable to connect to the AI model. Please try again later.",
-        sender: 'ai',
+        sender: 'system',
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -165,9 +136,13 @@ const ChatbotComponent: React.FC = () => {
     const bubbleClass = isUser 
       ? "bg-green-600 text-white self-end rounded-br-none" 
       : "bg-gray-100 text-gray-800 self-start rounded-tl-none";
+      
+    // System messages are a neutral style
+    const isSystem = message.sender === 'system';
+    const systemClass = isSystem ? "bg-yellow-100 text-yellow-800 text-center mx-auto" : "";
 
     return (
-      <div className={`flex flex-col max-w-xs sm:max-w-md p-3 my-2 rounded-xl shadow-md ${bubbleClass}`}>
+      <div className={`flex flex-col max-w-xs sm:max-w-md p-3 my-2 rounded-xl shadow-md ${isSystem ? systemClass : bubbleClass}`}>
         <p>{message.text}</p>
         
         {message.sources && message.sources.length > 0 && (
@@ -192,12 +167,6 @@ const ChatbotComponent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl">
-        {/* Chat Header */}
-        <div className="p-4 bg-green-700 text-white rounded-t-2xl flex items-center space-x-3">
-            <Bot className="w-6 h-6 text-amber-300" />
-            <h3 className="text-xl font-bold">AgroBot AI Assistant</h3>
-        </div>
-
         {/* Message Area */}
         <div className="flex-grow p-4 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 350px)' }}>
             {messages.map((msg) => (
@@ -206,7 +175,7 @@ const ChatbotComponent: React.FC = () => {
             <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
+        {/* Input Area (Functional, enabled when not sending) */}
         <div className="p-4 border-t border-gray-200">
             <div className="flex space-x-3">
                 <input
@@ -216,6 +185,7 @@ const ChatbotComponent: React.FC = () => {
                     onKeyPress={handleKeyPress}
                     placeholder={isSending ? "Waiting for response..." : "Ask a question about your crops..."}
                     className="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-green-500 focus:border-green-500 transition-all duration-200 shadow-inner"
+                    // Correctly enabled when user is not sending a message
                     disabled={isSending}
                 />
                 <button
