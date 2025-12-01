@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Send, Loader2,  Search,} from 'lucide-react';
+import { Send, Loader2, Search,} from 'lucide-react';
 import { GEMINI_API_URL, GEMINI_API_KEY } from '../../types';
 
-// --- TYPE DEFINITIONS ---
+// --- TYPE DEFINITIONS (omitted for brevity) ---
 interface Source { uri: string; title: string; }
 interface GroundingAttribution { web?: Source; }
 interface GroundingMetadata { groundingAttributions?: GroundingAttribution[]; }
@@ -10,12 +10,13 @@ interface CandidatePart { text: string; }
 interface CandidateContent { parts?: CandidatePart[]; }
 interface Candidate { content?: CandidateContent; groundingMetadata?: GroundingMetadata; }
 interface GeminiResponse { candidates?: Candidate[]; }
-interface Message { id: number; text: string; sender: 'user' | 'ai' | 'system'; sources?: Array<Source>; }
+interface Message { id: number; text: string; sender: 'user' | 'ai' | 'system'; sources?: Array<Source>; isTyping?: boolean; } // ADDED isTyping
 // --- END TYPE DEFINITIONS ---
+
 
 const systemPrompt = "You are AgroBot, an expert agricultural advisor specializing in tea crop health, farming techniques, and general agronomy. Provide clear, concise, and helpful answers. Always use Google Search for current information when discussing best practices, market trends, or recent events. Keep responses professional and practical for farmers.";
 
-// Utility function for exponential backoff during API calls
+// Utility function for exponential backoff during API calls (omitted for brevity)
 const fetchWithBackoff = async (url: string, payload: unknown, maxRetries = 5) => {
   let delay = 1000;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -45,6 +46,9 @@ const fetchWithBackoff = async (url: string, payload: unknown, maxRetries = 5) =
 };
 
 const ChatbotComponent: React.FC = () => {
+  // Use a negative ID for the AI's response that is currently being streamed
+  const STREAMING_ID = -99; 
+  
   const [messages, setMessages] = useState<Message[]>([{
     id: 1,
     text: "Hello! I am AgroBot. I can help you with your tea crop questions, pest control, and farming techniques. How can I assist you today?",
@@ -57,6 +61,47 @@ const ChatbotComponent: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // We use a helper function to simulate the typing effect
+  const startTypingSimulation = useCallback((fullText: string, sources: Source[]) => {
+    let currentText = '';
+    let charIndex = 0;
+    
+    // Initialize a temporary message for streaming
+    setMessages(prev => [...prev, { 
+        id: STREAMING_ID, 
+        text: '', 
+        sender: 'ai', 
+        sources: sources,
+        isTyping: true, // Marker for styling
+    }]);
+
+    const typingInterval = setInterval(() => {
+      if (charIndex < fullText.length) {
+        currentText += fullText[charIndex];
+        charIndex++;
+        
+        // Update the message being streamed
+        setMessages(prev => 
+            prev.map(msg => 
+                msg.id === STREAMING_ID ? { ...msg, text: currentText } : msg
+            )
+        );
+      } else {
+        clearInterval(typingInterval);
+        
+        // Final update: Remove typing marker and set final text
+        setMessages(prev => 
+            prev.map(msg => 
+                msg.id === STREAMING_ID ? { ...msg, id: Date.now() + 1, isTyping: false } : msg
+            )
+        );
+        setIsSending(false); // Enable input again
+      }
+    }, 25); // Speed of typing (25ms per character)
+    
+  }, [STREAMING_ID]);
+
 
   useEffect(scrollToBottom, [messages]);
 
@@ -71,11 +116,8 @@ const ChatbotComponent: React.FC = () => {
     try {
       const payload = {
         contents: [{ parts: [{ text: userQuery }] }],
-        // Enable Google Search grounding for accurate, real-time farming info
         tools: [{ "google_search": {} }],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
       };
       
       const keyQuery = GEMINI_API_KEY ? `?key=${GEMINI_API_KEY}` : '';
@@ -83,17 +125,13 @@ const ChatbotComponent: React.FC = () => {
       
       const result = await fetchWithBackoff(apiUrl, payload);
 
-      if (!result) {
-          throw new Error("Empty response received from AI service after retries.");
-      }
+      if (!result) { throw new Error("Empty response received from AI service after retries."); }
       
       const candidate = result.candidates?.[0];
-      const aiResponseText = candidate?.content?.parts?.[0]?.text || "Sorry, I encountered an issue generating a response.";
+      const fullAiResponseText = candidate?.content?.parts?.[0]?.text || "Sorry, I encountered an issue generating a response.";
       
-      // Extract grounding sources
       let sources: Source[] = [];
       const groundingMetadata = candidate?.groundingMetadata;
-      
       if (groundingMetadata && groundingMetadata.groundingAttributions) {
           sources = groundingMetadata.groundingAttributions
               .map((attr: GroundingAttribution) => ({ 
@@ -103,14 +141,8 @@ const ChatbotComponent: React.FC = () => {
               .filter(source => source.uri && source.title);
       }
 
-      const aiMessage: Message = {
-        id: Date.now() + 1,
-        text: aiResponseText,
-        sender: 'ai',
-        sources: sources,
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
+      // 🎯 FIX: Start the typing simulation here instead of adding the final message block
+      startTypingSimulation(fullAiResponseText, sources);
 
     } catch (error) {
       console.error("Gemini API Error:", error);
@@ -120,10 +152,10 @@ const ChatbotComponent: React.FC = () => {
         sender: 'system',
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsSending(false);
-    }
-  }, [isSending]);
+      setIsSending(false); // Re-enable input if API call failed
+    } 
+    // We DON'T set setIsSending(false) here, it's done inside startTypingSimulation
+  }, [isSending, startTypingSimulation]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -145,6 +177,9 @@ const ChatbotComponent: React.FC = () => {
       <div className={`flex flex-col max-w-xs sm:max-w-md p-3 my-2 rounded-xl shadow-md ${isSystem ? systemClass : bubbleClass}`}>
         <p>{message.text}</p>
         
+        {/* Visual cue for typing */}
+        {message.isTyping && <Loader2 className="animate-spin h-4 w-4 mt-2 text-green-500" />}
+
         {message.sources && message.sources.length > 0 && (
           <div className="mt-2 pt-2 border-t border-opacity-20 border-current text-xs text-opacity-80">
             <h4 className="font-semibold mb-1 flex items-center">
@@ -185,7 +220,6 @@ const ChatbotComponent: React.FC = () => {
                     onKeyPress={handleKeyPress}
                     placeholder={isSending ? "Waiting for response..." : "Ask a question about your crops..."}
                     className="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-green-500 focus:border-green-500 transition-all duration-200 shadow-inner"
-                    // Correctly enabled when user is not sending a message
                     disabled={isSending}
                 />
                 <button

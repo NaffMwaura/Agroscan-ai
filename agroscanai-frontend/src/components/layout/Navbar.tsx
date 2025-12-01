@@ -1,30 +1,22 @@
 import React, { useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate
-import type { NavbarProps } from '../../types'; // Ensure Page type is available
+import type { NavbarProps } from '../../types'; 
 import { IconLeaf, LogOut, Grid } from '../ui/Icons';
 
-// FIX: Removed setCurrentPage from NavbarProps destructuring to fix the TypeScript error
 const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
     const navigate = useNavigate();
 
-    // Custom handler to perform a navigation delay (500ms for Login/Register)
     const handleDelayedNavigation = useCallback((e: React.MouseEvent, path: string) => {
-        e.preventDefault(); // Prevent instant navigation
+        e.preventDefault(); 
         
         const target = e.currentTarget;
         
-        // 1. Apply active state/visual delay feedback immediately
-        // Applied specific transition class that reverts immediately upon navigation
         target.classList.add('bg-green-700', 'cursor-wait');
 
         setTimeout(() => {
-            // 2. Remove visual feedback before navigating 
-            // We use setTimeout to ensure the visual state lasts for the intended duration
-            // and then clear the active classes immediately before navigation takes over.
+            target.classList.remove('bg-green-700', 'cursor-wait'); 
             
-            target.classList.remove('bg-green-700', 'cursor-wait', 'opacity-70'); 
-            
-            // 3. Navigate after delay
+            // Navigate after delay
             navigate(path);
         }, 500); // 500ms delay
 
@@ -41,7 +33,6 @@ const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
 
     
     return (
-        // FIX 1: Increased vertical padding to make the navbar wider downwards (taller)
         <nav className="bg-green-800 py-5 px-5 shadow-lg fixed top-0 left-0 right-0 z-20">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
                 
