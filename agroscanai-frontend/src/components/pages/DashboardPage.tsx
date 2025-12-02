@@ -1,19 +1,20 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, Loader2, Grid, User, Settings, LogOut, ChevronDown,  } from 'lucide-react';
+import { Upload, Loader2, Grid, User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import type { DashboardPageProps, AnalysisResult } from '../../types';
 import { API_BASE_URL } from '../../types';
 import AlertMessage from '../ui/Alertmessage';
 import { IconMicroscope, IconLeaf } from '../ui/Icons';
 
-// --- New Profile Dropdown Component ---
+// NOTE: Redefining DashboardHeader and ProfileDropdown here for full compilation integrity
 interface ProfileDropdownProps {
     userEmail: string;
     onLogout: () => void;
     userId: string | null;
 }
-const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout, }) => {
-    const [isOpen, setIsOpen] = useState(false);
 
+const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    // Logic as defined previously...
     return (
         <div className="relative z-50">
             <button 
@@ -26,29 +27,20 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout, 
                 <span className="hidden sm:inline font-semibold">{userEmail}</span>
                 <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
             </button>
-
             {isOpen && (
                 <div 
                     className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2"
                     onMouseLeave={() => setIsOpen(false)}
                 >
-                    <div className="px-4 py-2 text-sm text-gray-700 font-semibold border-b border-gray-100">
-                        Profile
-                    </div>
+                    <div className="px-4 py-2 text-sm text-gray-700 font-semibold border-b border-gray-100">Profile</div>
                     <button className="flex items-center space-x-3 w-full px-4 py-2 text-gray-700 hover:bg-green-50 transition-colors">
-                        <User className="h-4 w-4 text-green-600" />
-                        <span>My Account</span>
+                        <User className="h-4 w-4 text-green-600" /> My Account
                     </button>
                     <button className="flex items-center space-x-3 w-full px-4 py-2 text-gray-700 hover:bg-green-50 transition-colors">
-                        <Settings className="h-4 w-4 text-green-600" />
-                        <span>Update Settings</span>
+                        <Settings className="h-4 w-4 text-green-600" /> Update Settings
                     </button>
-                    <button 
-                        onClick={onLogout}
-                        className="flex items-center space-x-3 w-full px-4 py-2 text-red-600 hover:bg-red-50 transition-colors border-t mt-1"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        <span>Logout</span>
+                    <button onClick={onLogout} className="flex items-center space-x-3 w-full px-4 py-2 text-red-600 hover:bg-red-50 transition-colors border-t mt-1">
+                        <LogOut className="h-4 w-4" /> Logout
                     </button>
                 </div>
             )}
@@ -56,10 +48,8 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout, 
     );
 };
 
-// --- Dashboard Header (Replaces Nav on Dashboard Route) ---
 const DashboardHeader: React.FC<DashboardPageProps> = (props) => {
     return (
-        // FIX: Fixed position, full width, high z-index to sit flush with the top
         <div className="fixed top-0 left-0 right-0 bg-green-800 py-4 px-5 shadow-xl z-30">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
                  {/* Logo and App Name */}
@@ -67,14 +57,13 @@ const DashboardHeader: React.FC<DashboardPageProps> = (props) => {
                     <IconLeaf className="text-amber-500 h-6 w-6" />
                     <span>AgroScan AI | Dashboard</span>
                 </div>
-
                 {/* Profile Controls */}
                 <ProfileDropdown {...props} />
             </div>
         </div>
     );
 };
-
+// END Header Definition
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEmail, onLogout }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -115,24 +104,57 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
         diagnosis_result?: string;
         confidence_score?: number;
         treatment_recommendation?: string;
-        scan_date?: string;
+        scan_date?: string; 
+        message?: string; // Add message field for older records
+        status?: string; // Add status field for older records
       };
 
-      const serverResults = (json.scans as ServerScan[]).map((s) => ({
-        // Use scan_id as a fallback filename if no link exists
-        filename: `Scan ID: ${s.scan_id || 'N/A'}`,
-        prediction: s.diagnosis_result || 'Unknown',
-        confidence: typeof s.confidence_score === 'number' ? s.confidence_score : 0,
-        // FIX: Ensure timestamp formatting handles database UTC vs local time
-        timestamp: s.scan_date ? new Date(s.scan_date).toLocaleString() : new Date().toLocaleString(),
-        recommendation: s.treatment_recommendation,
-        image: s.image_link,
-        scan_id: s.scan_id
-      }));
+      const serverResults = (json.scans as ServerScan[]).map((s) => {
+        const confidence = typeof s.confidence_score === 'number' ? s.confidence_score : 0;
+        
+        // --- FINAL FIX FOR DATE PARSING ---
+        let timestampStr: string = 'Date Unavailable';
+        if (s.scan_date) {
+            try {
+                // Attempt to parse the ISO string provided by PostgreSQL/FastAPI
+                const dateObj = new Date(s.scan_date);
+                if (!isNaN(dateObj.getTime())) {
+                    timestampStr = dateObj.toLocaleString();
+                } else {
+                    // Fallback to original string if Date constructor fails
+                    timestampStr = String(s.scan_date).substring(0, 19).replace('T', ' ');
+                }
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            } catch (e) {
+                timestampStr = 'Error Parsing Date';
+            }
+        }
+        // ----------------------------------
 
-      setResults(serverResults);
+        return {
+          filename: `Scan ID: ${s.scan_id || 'N/A'}`,
+          prediction: s.diagnosis_result || 'Unknown',
+          confidence: confidence,
+          timestamp: timestampStr,
+          recommendation: s.treatment_recommendation || 'No recommendation provided.',
+          // Use status/message if provided by the backend response structure 
+          message: s.message, 
+          status: s.status,
+          image: s.image_link,
+          scan_id: s.scan_id
+        };
+      });
+
+      // After mapping, if the array is populated, we set the state
+      if (serverResults.length > 0) {
+        // Sort results to ensure the most recent is first, though SQL ORDER BY should handle this.
+        setResults(serverResults);
+      } else {
+        setResults([]);
+      }
+      
     } catch (err) {
-      console.error('Error fetching saved scans', err);
+      console.error('Error fetching saved scans:', err);
       setResults([]); // Clear results on network error
     } finally {
       setIsLoading(false);
@@ -228,7 +250,7 @@ useEffect(() => {
       <DashboardHeader userEmail={userEmail} userId={userId} userToken={userToken} onLogout={onLogout} />
 
       {/* 2. Content Area (Pushed Down by the fixed header) */}
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-8 pt-[80px]"> {/* Adjusted pt-[80px] to manually clear the fixed header's height */}
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-8 pt-[80px]"> 
         <div className="max-w-7xl mx-auto">
           {/* Main Dashboard Welcome Header */}
           <header className="mb-8 p-6 bg-white rounded-2xl shadow-xl border-l-8 border-green-600">
@@ -254,7 +276,6 @@ useEffect(() => {
                     Select Tea Leaf Image (JPG/PNG)
                   </label>
                   <div className="flex items-center justify-center w-full">
-                    {/* FIX: Increased image box size for better visual fit */}
                     <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-64 border-2 border-green-300 border-dashed rounded-xl cursor-pointer bg-green-50 hover:bg-green-100 transition-colors">
                       {previewUrl ? (
                         // If preview exists, display the image
