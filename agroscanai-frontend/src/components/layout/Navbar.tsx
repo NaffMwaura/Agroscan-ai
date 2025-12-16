@@ -37,7 +37,8 @@ const Navbar: React.FC<NavbarProps> = ({ userToken, onLogout }) => {
             <div className="max-w-7xl mx-auto flex justify-between items-center">
                 
                 {/* 1. Logo and App Name (Left) */}
-                <Link to="/" className="text-white text-4xl font-extrabold flex items-center space-x-5 cursor-pointer">
+                <Link to="/#" className="text-white text-4xl font-extrabold flex items-center space-x-5 cursor-pointer">
+                    
                     <IconLeaf className="text-amber-500 h-8 w-10" />
                     <span>AgroScan AI</span>
                 </Link>

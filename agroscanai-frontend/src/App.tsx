@@ -135,19 +135,20 @@ const location = useLocation();
     // Determine if the current user is logged in
     const isAuthenticated = useMemo(() => !!userToken && !!userId, [userToken, userId]);
 
-    // Check if the current route should display the footer
-    const shouldShowFooter = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/register';
+    // --- AUTH PAGE VISIBILITY LOGIC ---
+    const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+    const shouldShowFooter = location.pathname === '/' && !isAuthPage;
 
-    // FIX 1: Apply padding only if we are on the Dashboard route to avoid the white gap on other pages
+    // Apply padding only if Navbar is visible and we are on Dashboard
     const isDashboardRoute = location.pathname === '/dashboard';
-    const mainClasses = `flex-grow ${isDashboardRoute ? 'pt-24' : ''}`; // We use pt-24 here because DashboardPage no longer needs the offset.
+    const mainClasses = `flex-grow ${isDashboardRoute && !isAuthPage ? 'pt-24' : ''}`;
 
     return (
         <div className="min-h-screen flex flex-col font-sans bg-gray-50">
-            <Navbar setCurrentPage={handlePageChange} userToken={userToken} onLogout={handleLogout} /> 
-            {/* FIX 2: Apply conditional padding */}
+            {/* Navbar is hidden on Auth Pages */}
+            {!isAuthPage && <Navbar setCurrentPage={handlePageChange} userToken={userToken} onLogout={handleLogout} />} 
+            
             <main className={mainClasses}> 
-                
                 <Routes>
                     {/* 1. Landing Page (Default Route) */}
                     <Route path="/" element={<LandingPage setCurrentPage={handlePageChange} diseaseCategories={diseaseCategories} message={globalMessage} setMessage={setGlobalMessage} />} />
@@ -178,10 +179,12 @@ const location = useLocation();
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
+
+            {/* Footer is hidden on Auth Pages and Dashboard */}
             {shouldShowFooter && <Footer setCurrentPage={handlePageChange} />}
 
             {/* --- GLOBAL CHAT WIDGET INTEGRATION --- */}
-            <ChatWidget userToken={userToken} userId={userId} />
+            {!isAuthPage && <ChatWidget userToken={userToken} userId={userId} />}
             {/* -------------------------------------- */}
         </div>
     );

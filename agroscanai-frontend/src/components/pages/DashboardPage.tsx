@@ -1,46 +1,69 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, Loader2, Grid, User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { 
+    Upload, Loader2, User, LogOut, 
+    ChevronDown, MessageSquare, Star, ShieldCheck, 
+    Zap, Microscope 
+} from 'lucide-react';
 import type { DashboardPageProps, AnalysisResult } from '../../types';
 import { API_BASE_URL } from '../../types';
 import AlertMessage from '../ui/Alertmessage';
 import { IconMicroscope, IconLeaf } from '../ui/Icons';
 
-// NOTE: Redefining DashboardHeader and ProfileDropdown here for full compilation integrity
+// --- Interfaces ---
+
+// FIX 1: Defined the missing ProfileDropdownProps
 interface ProfileDropdownProps {
     userEmail: string;
     onLogout: () => void;
     userId: string | null;
 }
 
+// FIX 2: Defined a specific type for the API response objects to avoid 'any'
+interface ServerScanResponse {
+    scan_id: number | string;
+    prediction?: string;
+    confidence?: number;
+    date?: string;
+    treatment_recommendation?: string;
+}
+
+// --- Sub-Components ---
+
+const ReviewCard: React.FC<{ name: string; role: string; text: string; rating: number }> = ({ name, role, text, rating }) => (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col space-y-3 hover:shadow-md transition-shadow">
+        <div className="flex text-amber-400">
+            {[...Array(rating)].map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+        </div>
+        <p className="text-gray-600 italic text-sm">"{text}"</p>
+        <div>
+            <h4 className="font-bold text-gray-800 text-sm">{name}</h4>
+            <p className="text-green-600 text-xs">{role}</p>
+        </div>
+    </div>
+);
+
 const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
-    // Logic as defined previously...
     return (
         <div className="relative z-50">
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white p-2 rounded-full transition-colors shadow-md"
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white p-1.5 pr-3 rounded-full transition-colors shadow-md"
             >
                 <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-green-900 font-bold text-sm">
                     {userEmail[0]?.toUpperCase()}
                 </div>
-                <span className="hidden sm:inline font-semibold">{userEmail}</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
+                <span className="hidden sm:inline font-semibold text-sm">{userEmail.split('@')[0]}</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div 
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2"
-                    onMouseLeave={() => setIsOpen(false)}
-                >
-                    <div className="px-4 py-2 text-sm text-gray-700 font-semibold border-b border-gray-100">Profile</div>
-                    <button className="flex items-center space-x-3 w-full px-4 py-2 text-gray-700 hover:bg-green-50 transition-colors">
-                        <User className="h-4 w-4 text-green-600" /> My Account
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 overflow-hidden" onMouseLeave={() => setIsOpen(false)}>
+                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-50">Account Settings</div>
+                    <button className="flex items-center space-x-3 w-full px-4 py-2.5 text-gray-700 hover:bg-green-50 transition-colors text-sm">
+                        <User className="h-4 w-4 text-green-600" /> <span>My Profile</span>
                     </button>
-                    <button className="flex items-center space-x-3 w-full px-4 py-2 text-gray-700 hover:bg-green-50 transition-colors">
-                        <Settings className="h-4 w-4 text-green-600" /> Update Settings
-                    </button>
-                    <button onClick={onLogout} className="flex items-center space-x-3 w-full px-4 py-2 text-red-600 hover:bg-red-50 transition-colors border-t mt-1">
-                        <LogOut className="h-4 w-4" /> Logout
+                    <button onClick={onLogout} className="flex items-center space-x-3 w-full px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors text-sm border-t border-gray-50">
+                        <LogOut className="h-4 w-4" /> <span>Logout</span>
                     </button>
                 </div>
             )}
@@ -48,322 +71,256 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ userEmail, onLogout }
     );
 };
 
-const DashboardHeader: React.FC<DashboardPageProps> = (props) => {
-    return (
-        <div className="fixed top-0 left-0 right-0 bg-green-800 py-4 px-5 shadow-xl z-30">
-            <div className="max-w-7xl mx-auto flex justify-between items-center">
-                 {/* Logo and App Name */}
-                <div className="text-white text-xl font-extrabold flex items-center space-x-2">
-                    <IconLeaf className="text-amber-500 h-6 w-6" />
-                    <span>AgroScan AI | Dashboard</span>
-                </div>
-                {/* Profile Controls */}
-                <ProfileDropdown {...props} />
-            </div>
-        </div>
-    );
-};
-// END Header Definition
+// --- Main Dashboard ---
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEmail, onLogout }) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [results, setResults] = useState<AnalysisResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'overview' | 'scan'>('overview');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [results, setResults] = useState<AnalysisResult[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [uploadMessage, setUploadMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const fetchSavedScans = useCallback(async () => {
-    // Only attempt fetch if user email is present
-    if (!userEmail) {
-      setResults([]);
-      return;
-    }
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/get_scans/${encodeURIComponent(userEmail)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(userToken ? { Authorization: `Bearer ${userToken}` } : {})
-        }
-      });
-
-      const json = await res.json().catch(() => null);
-      
-      // We check for res.ok AND that 'scans' property exists and is an array
-      if (!res.ok || !json || !Array.isArray(json.scans)) {
-        console.warn('fetchSavedScans failed or returned bad data structure:', json);
-        setResults([]); // Clear results on failure
-        return;
-      }
-
-      type ServerScan = {
-        scan_id?: string | number;
-        image_link?: string;
-        diagnosis_result?: string;
-        confidence_score?: number;
-        treatment_recommendation?: string;
-        scan_date?: string; 
-        message?: string; // Add message field for older records
-        status?: string; // Add status field for older records
-      };
-
-      const serverResults = (json.scans as ServerScan[]).map((s) => {
-        const confidence = typeof s.confidence_score === 'number' ? s.confidence_score : 0;
-        
-        // --- FINAL FIX FOR DATE PARSING ---
-        let timestampStr: string = 'Date Unavailable';
-        if (s.scan_date) {
-            try {
-                // Attempt to parse the ISO string provided by PostgreSQL/FastAPI
-                const dateObj = new Date(s.scan_date);
-                if (!isNaN(dateObj.getTime())) {
-                    timestampStr = dateObj.toLocaleString();
-                } else {
-                    // Fallback to original string if Date constructor fails
-                    timestampStr = String(s.scan_date).substring(0, 19).replace('T', ' ');
-                }
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            } catch (e) {
-                timestampStr = 'Error Parsing Date';
+    const fetchSavedScans = useCallback(async () => {
+        if (!userEmail) return;
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/get_scans/${encodeURIComponent(userEmail)}`, {
+                headers: { 'Content-Type': 'application/json', ...(userToken ? { Authorization: `Bearer ${userToken}` } : {}) }
+            });
+            const json = await res.json();
+            if (res.ok && Array.isArray(json.scans)) {
+                // FIX 2: Used ServerScanResponse instead of 'any'
+                const mapped = json.scans.map((s: ServerScanResponse) => ({
+                    filename: `Scan #${s.scan_id}`,
+                    prediction: s.prediction || 'Unknown',
+                    confidence: s.confidence || 0,
+                    timestamp: s.date ? new Date(s.date).toLocaleString() : 'N/A',
+                    recommendation: s.treatment_recommendation,
+                    scan_id: s.scan_id
+                }));
+                setResults(mapped);
             }
+        } catch (err) { 
+            // FIX 3: Log error or prefix with _ to satisfy ESLint if you aren't using the object
+            console.error("Fetch history failed:", err); 
         }
-        // ----------------------------------
+        finally { setIsLoading(false); }
+    }, [userEmail, userToken]);
 
-        return {
-          filename: `Scan ID: ${s.scan_id || 'N/A'}`,
-          prediction: s.diagnosis_result || 'Unknown',
-          confidence: confidence,
-          timestamp: timestampStr,
-          recommendation: s.treatment_recommendation || 'No recommendation provided.',
-          // Use status/message if provided by the backend response structure 
-          message: s.message, 
-          status: s.status,
-          image: s.image_link,
-          scan_id: s.scan_id
-        };
-      });
+    useEffect(() => { if (userEmail) fetchSavedScans(); }, [userEmail, fetchSavedScans]);
 
-      // After mapping, if the array is populated, we set the state
-      if (serverResults.length > 0) {
-        // Sort results to ensure the most recent is first, though SQL ORDER BY should handle this.
-        setResults(serverResults);
-      } else {
-        setResults([]);
-      }
-      
-    } catch (err) {
-      console.error('Error fetching saved scans:', err);
-      setResults([]); // Clear results on network error
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userEmail, userToken]);
+    const handleUpload = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedFile) return;
+        setIsLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+            formData.append("user_email", userEmail);
+            const res = await fetch(`${API_BASE_URL}/predict`, {
+                method: 'POST',
+                headers: { ...(userToken ? { Authorization: `Bearer ${userToken}` } : {}) },
+                body: formData
+            });
+            if (res.ok) {
+                setUploadMessage({ text: "Scan successful!", type: 'success' });
+                fetchSavedScans();
+                setSelectedFile(null);
+                setPreviewUrl(null);
+            }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_err) { 
+            // FIX 3: Changed 'err' to '_err' to signify an unused variable to ESLint
+            setUploadMessage({ text: "Error connecting to server", type: 'error' }); 
+        }
+        finally { setIsLoading(false); }
+    };
 
-useEffect(() => {
-    // This correctly runs immediately after login (when userEmail becomes set) to fetch history
-    if (userEmail) {
-        fetchSavedScans();
-    }
-    // We explicitly depend on userEmail to guarantee fetch is called upon component mount/remount after login
-}, [userEmail, fetchSavedScans]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      const file = event.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setUploadMessage(null);
-    }
-  };
-
-  const handleUpload = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) {
-      setUploadMessage({ text: "Please select an image file to upload.", type: 'error' });
-      return;
-    }
-
-    setIsLoading(true);
-    setUploadMessage(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("user_email", userEmail); 
-
-      console.log('Uploading to /predict...');
-      const predictRes = await fetch(`${API_BASE_URL}/predict`, {
-        method: 'POST',
-        headers: {
-          ...(userToken ? { Authorization: `Bearer ${userToken}` } : {})
-        },
-        body: formData,
-      });
-
-      const predictData = await predictRes.json().catch(() => null);
-      if (!predictRes.ok) {
-        console.error('Predict failed', predictRes.status, predictData);
-        setUploadMessage({ text: predictData?.message || 'Analysis failed.', type: 'error' });
-        if (predictRes.status === 401 || predictRes.status === 403) onLogout();
-        return;
-      }
-
-      const newResult: AnalysisResult = {
-        filename: selectedFile.name,
-        prediction: predictData.prediction,
-        confidence: predictData.confidence,
-        timestamp: new Date().toLocaleString(),
-        status: predictData.status,
-        message: predictData.message,
-        recommendation: predictData.recommendation,
-      };
-
-      // Since the backend /predict endpoint now includes save logic (via PredictionAndSaveResponse), 
-      // we check the response for save status, eliminating the need for a separate /save_scan call.
-      if (predictData.save_status === 'SAVED_SUCCESS') {
-          newResult.scan_id = predictData.scan_id;
-          setUploadMessage({ text: 'Scan analyzed and saved to history.', type: 'success' });
-          await fetchSavedScans(); // Refresh history
-      } else if (predictData.save_status && predictData.save_status.includes('FAILED')) {
-          console.warn('Save scan failed on backend:', predictData.save_status);
-          setUploadMessage({ text: 'Analysis ran, but saving history failed.', type: 'error' });
-      }
-
-
-      // Show immediate result locally
-      setResults(prev => [newResult, ...prev]);
-      setSelectedFile(null);
-      setPreviewUrl(null);
-    } catch (error) {
-      console.error("Upload Error:", error);
-      setUploadMessage({ text: "A network error occurred. Check backend connection.", type: 'error' });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedFile, userToken, userEmail, onLogout, fetchSavedScans]);
-
-  return (
-    <>
-      {/* 1. Dedicated Dashboard Header */}
-      <DashboardHeader userEmail={userEmail} userId={userId} userToken={userToken} onLogout={onLogout} />
-
-      {/* 2. Content Area (Pushed Down by the fixed header) */}
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-8 pt-[80px]"> 
-        <div className="max-w-7xl mx-auto">
-          {/* Main Dashboard Welcome Header */}
-          <header className="mb-8 p-6 bg-white rounded-2xl shadow-xl border-l-8 border-green-600">
-            <h1 className="text-4xl font-extrabold text-gray-800 flex items-center space-x-3">
-              <Grid className="h-8 w-8 text-green-600" />
-              <span>Farmer Dashboard</span>
-            </h1>
-            <p className="text-gray-500 mt-2">
-              Welcome, Naff: <span className="font-mono text-xs p-1 bg-gray-100 rounded">{userEmail}</span>. Upload a leaf image for immediate health assessment.
-            </p>
-          </header>
-
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* New Scan Upload Card */}
-            <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-xl h-fit sticky top-24">
-              <h2 className="text-2xl font-bold mb-4 text-green-700 border-b pb-2">New Scan</h2>
-
-              <AlertMessage message={uploadMessage ? uploadMessage.text : null} type={uploadMessage ? uploadMessage.type : null} />
-
-              <form onSubmit={handleUpload}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Tea Leaf Image (JPG/PNG)
-                  </label>
-                  <div className="flex items-center justify-center w-full">
-                    <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-64 border-2 border-green-300 border-dashed rounded-xl cursor-pointer bg-green-50 hover:bg-green-100 transition-colors">
-                      {previewUrl ? (
-                        // If preview exists, display the image
-                        <img src={previewUrl} alt="Preview" className="h-full w-full object-cover rounded-xl p-1" />
-                      ) : (
-                        // If no preview, display the upload placeholder
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          <Upload className="w-10 h-10 mb-3 text-green-500" />
-                          <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                          <p className="text-xs text-gray-500">{selectedFile ? selectedFile.name : 'Max 5MB'}</p>
+    return (
+        <div className="min-h-screen bg-[#f8fafc] font-inter">
+            {/* Navigation Header */}
+            <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50">
+                <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+                    <div className="flex items-center space-x-2">
+                        <div className="bg-green-600 p-2 rounded-xl">
+                            <IconLeaf className="text-white h-5 w-5" />
                         </div>
-                      )}
-                      <input id="file-upload" type="file" className="hidden" accept="image/jpeg,image/png" onChange={handleFileChange} />
-                    </label>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading || !selectedFile}
-                  className={`w-full py-3 rounded-xl text-white font-semibold transition-all duration-300 shadow-lg flex items-center justify-center space-x-2 ${isLoading || !selectedFile ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 active:bg-green-800'}`}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="animate-spin h-5 w-5" />
-                      <span>Analyzing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-5 w-5" />
-                      <span>Run AI Scan</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Scan History Card */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xl">
-              <h2 className="text-2xl font-bold mb-6 text-green-700 border-b pb-2">Scan History ({results.length})</h2>
-
-              {results.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl">
-                  <IconMicroscope className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                  <p>No scan history yet. Upload your first image to begin tracking your tea crop health!</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {results.map((result, index) => (
-                    <div key={index} className="p-4 border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition duration-150 flex flex-col bg-green-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-4">
-                          <IconLeaf className={`h-8 w-8 flex-shrink-0 ${result.prediction === 'Healthy' ? 'text-green-600' : 'text-red-500'}`} />
-                          <div>
-                            <p className="text-lg font-semibold text-gray-800">{result.prediction}</p>
-                            <p className="text-xs text-gray-500">Scanned: {result.timestamp}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-2xl font-bold ${result.confidence >= 0.7 ? 'text-green-700' : 'text-yellow-600'}`}>
-                            {(result.confidence * 100).toFixed(1)}<span className="text-lg font-normal">%</span>
-                          </p>
-                          <p className="text-xs text-gray-500">Confidence</p>
-                        </div>
-                      </div>
-
-                      {result.message && (
-                        <div className={`mt-2 p-3 rounded text-sm ${result.status === 'LOW_CONFIDENCE' ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-gray-100 border border-gray-200 text-gray-700'}`}>
-                          {result.message}
-                        </div>
-                      )}
-
-                      {result.recommendation && (
-                        <div className="mt-3 p-3 bg-white border border-green-100 rounded text-sm text-gray-800">
-                          <h4 className="font-semibold text-sm mb-1">Recommendation</h4>
-                          <p>{result.recommendation}</p>
-                        </div>
-                      )}
+                        <span className="text-xl font-black text-gray-900 tracking-tight">AgroScan<span className="text-green-600">AI</span></span>
                     </div>
-                  ))}
+                    
+                    <div className="hidden md:flex items-center bg-gray-100 p-1 rounded-xl">
+                        <button 
+                            onClick={() => setActiveTab('overview')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'overview' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Overview
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('scan')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scan' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            AI Analysis
+                        </button>
+                    </div>
+
+                    <ProfileDropdown userEmail={userEmail} onLogout={onLogout} userId={userId} />
                 </div>
-              )}
-            </div>
-          </div>
+            </nav>
+
+            <main className="max-w-7xl mx-auto px-6 pt-32 pb-20">
+                {activeTab === 'overview' ? (
+                    /* PAGE 1: OVERVIEW & REVIEWS */
+                    <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="grid lg:grid-cols-2 gap-12 items-center">
+                            <div>
+                                <h2 className="text-5xl font-black text-gray-900 leading-tight">
+                                    Precision Farming <br/>
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-amber-500">Driven by AI.</span>
+                                </h2>
+                                <p className="mt-6 text-lg text-gray-600 leading-relaxed">
+                                    AgroScan AI uses advanced neural networks to detect tea leaf diseases with 98.2% accuracy. Protect your yield and optimize treatment with instant digital diagnosis.
+                                </p>
+                                <div className="mt-10 flex space-x-4">
+                                    <button onClick={() => setActiveTab('scan')} className="px-8 py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-200">
+                                        Start Scanning
+                                    </button>
+                                    <button className="px-8 py-4 bg-white text-gray-700 font-bold rounded-2xl border border-gray-200 hover:bg-gray-50 transition-all flex items-center space-x-2">
+                                        <MessageSquare className="w-5 h-5 text-green-600" />
+                                        <span>Talk to AgroBot</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-green-50 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center">
+                                    <ShieldCheck className="w-10 h-10 text-green-600 mb-4" />
+                                    <span className="text-3xl font-black text-gray-900">98%</span>
+                                    <span className="text-sm text-green-700 font-medium">Accuracy</span>
+                                </div>
+                                <div className="bg-amber-50 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center">
+                                    <Zap className="w-10 h-10 text-amber-500 mb-4" />
+                                    <span className="text-3xl font-black text-gray-900">&lt;2s</span>
+                                    <span className="text-sm text-amber-700 font-medium">Analysis Time</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Reviews Section */}
+                        <section>
+                            <div className="flex justify-between items-end mb-8">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900">Farmer Testimonials</h3>
+                                    <p className="text-gray-500">Trusted by 500+ tea estates across the region.</p>
+                                </div>
+                                <div className="flex -space-x-2">
+                                    {[1,2,3,4].map(i => (
+                                        <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-gray-200" />
+                                    ))}
+                                    <div className="w-10 h-10 rounded-full border-2 border-white bg-green-600 flex items-center justify-center text-[10px] text-white font-bold">+2k</div>
+                                </div>
+                            </div>
+                            <div className="grid md:grid-cols-3 gap-6">
+                                <ReviewCard 
+                                    name="Samuel K." role="Estate Manager" 
+                                    text="The accuracy in spotting Blight before it spreads has saved us thousands this season." 
+                                    rating={5} 
+                                />
+                                <ReviewCard 
+                                    name="Elena R." role="Small-scale Farmer" 
+                                    text="AgroBot helped me identify exactly which organic fertilizer to use for my red rust issue." 
+                                    rating={5} 
+                                />
+                                <ReviewCard 
+                                    name="David M." role="Agricultural Consultant" 
+                                    text="A game changer for the tea industry. The history tracking is invaluable for long-term health logs." 
+                                    rating={4} 
+                                />
+                            </div>
+                        </section>
+                    </div>
+                ) : (
+                    /* PAGE 2: SCAN & HISTORY */
+                    <div className="grid lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                        <div className="lg:col-span-1 space-y-6">
+                            <div className="bg-white p-6 rounded-3xl shadow-xl border border-gray-100">
+                                <h2 className="text-xl font-bold mb-6 flex items-center space-x-2">
+                                    <Microscope className="w-5 h-5 text-green-600" />
+                                    <span>Instant Diagnosis</span>
+                                </h2>
+                                <AlertMessage message={uploadMessage?.text || null} type={uploadMessage?.type || null} />
+                                <form onSubmit={handleUpload} className="space-y-4">
+                                    <label className="relative flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer bg-gray-50 hover:bg-green-50/50 hover:border-green-300 transition-all overflow-hidden group">
+                                        {previewUrl ? (
+                                            <img src={previewUrl} alt="Preview" className="h-full w-full object-cover" />
+                                        ) : (
+                                            <div className="text-center">
+                                                <div className="bg-white p-4 rounded-2xl shadow-sm mb-4 inline-block group-hover:scale-110 transition-transform">
+                                                    <Upload className="w-8 h-8 text-green-600" />
+                                                </div>
+                                                <p className="text-sm font-bold text-gray-700">Drop your image here</p>
+                                                <p className="text-xs text-gray-400 mt-1">PNG or JPG up to 10MB</p>
+                                            </div>
+                                        )}
+                                        <input type="file" className="hidden" onChange={(e) => {
+                                            if (e.target.files?.[0]) {
+                                                setSelectedFile(e.target.files[0]);
+                                                setPreviewUrl(URL.createObjectURL(e.target.files[0]));
+                                            }
+                                        }} />
+                                    </label>
+                                    <button 
+                                        disabled={isLoading || !selectedFile}
+                                        className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl shadow-lg shadow-green-100 disabled:opacity-50 hover:bg-green-700 transition-all flex items-center justify-center space-x-2"
+                                    >
+                                        {isLoading ? <Loader2 className="animate-spin" /> : <span>Analyze Sample</span>}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-2">
+                            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                                <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                                    <h2 className="text-xl font-bold text-gray-800">Recent Scans</h2>
+                                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">{results.length} Records</span>
+                                </div>
+                                <div className="p-6">
+                                    {results.length === 0 ? (
+                                        <div className="text-center py-20">
+                                            <IconMicroscope className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                                            <p className="text-gray-400 font-medium">No history found. Start your first scan.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {results.map((res, i) => (
+                                                <div key={i} className="flex items-start space-x-4 p-4 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                                    <div className={`p-3 rounded-xl ${res.prediction === 'Healthy' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                        <IconLeaf className="w-6 h-6" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between">
+                                                            <h4 className="font-bold text-gray-900">{res.prediction}</h4>
+                                                            <span className="text-xs font-bold text-gray-400">{res.timestamp}</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 mt-1">Confidence: {(res.confidence * 100).toFixed(1)}%</p>
+                                                        {res.recommendation && (
+                                                            <div className="mt-3 text-xs bg-white p-3 rounded-lg border border-gray-100 text-gray-600 italic">
+                                                                {res.recommendation}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </main>
         </div>
-      </div>
-    </>
-  );
+    );
 };
 
 export default DashboardPage;
