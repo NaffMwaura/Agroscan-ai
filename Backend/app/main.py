@@ -355,6 +355,10 @@ async def predict_disease_actual_model(image_bytes: bytes) -> PredictionResponse
 
 
 # --- ENDPOINTS (Authentication, History, etc. remain the same) ---
+@app.get("/api/healthchecker")
+def healthchecker():
+    return {"status": "success", "message": "Integrated with Vercel!"}
+
 @app.get("/")
 async def read_root():
     """Root endpoint for the Agroscan AI API."""
