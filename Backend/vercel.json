@@ -1,5 +1,17 @@
 {
-  "rewrites": [
-    { "source": "/app/(.*)", "destination": "/app/main.py" }
+  "version": 2,
+  "builds": [
+    {
+      "src": "app/main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "functions": {
+    "app/main.py": {
+      "excludeFiles": "{static/**,data/**,tests/**,docs/**}"
+    }
+  },
+  "routes": [
+    { "src": "/(.*)", "dest": "app/main.py" }
   ]
 }
