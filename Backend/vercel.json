@@ -6,12 +6,10 @@
       "use": "@vercel/python"
     }
   ],
-  "functions": {
-    "app/main.py": {
-      "excludeFiles": "{static/**,data/**,tests/**,docs/**}"
-    }
-  },
   "routes": [
-    { "src": "/(.*)", "dest": "app/main.py" }
+    {
+      "src": "/(.*)",
+      "dest": "app/main.py"
+    }
   ]
 }
