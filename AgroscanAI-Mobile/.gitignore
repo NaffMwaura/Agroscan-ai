@@ -2,6 +2,14 @@
 
 # dependencies
 node_modules/
+node_modules/
+.expo/
+dist/
+build/
+android/
+ios/
+Backend/
+*.h5
 
 # Expo
 .expo/

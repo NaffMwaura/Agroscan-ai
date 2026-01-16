@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+.next/
+dist/
+build/
+android/
+ios/
+*.log
+.vscode/
