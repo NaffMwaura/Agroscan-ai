@@ -23,13 +23,10 @@ os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 # --- Configuration ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-FALLBACK_DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"), 
-    "database": os.getenv("DB_NAME", "AgroscanAI"),
-    "user": os.getenv("DB_USER", "postgres"), 
-    "password": os.getenv("DB_PASSWORD", "root"), 
-    "port": os.getenv("DB_PORT", "5432")
-}
+# Ensure SSL for Neon
+if DATABASE_URL and "sslmode=" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require" if "?" not in DATABASE_URL else "&sslmode=require"
+
 MODEL_PATH = "./best_tea_disease_model_v3.h5" 
 IMG_HEIGHT = 160
 IMG_WIDTH = 160
@@ -59,7 +56,7 @@ RECOMMENDATIONS = {
 app = FastAPI(
     title="Agroscan AI Unified Backend",
     description="API for detecting tea plant diseases and managing users with PostgreSQL.",
-    version="0.5.0", 
+    version="0.5.1", 
 )
 
 model = None
@@ -105,19 +102,24 @@ def initialize_pool():
     global db_pool
     if db_pool is None:
         try:
-            if DATABASE_URL:
+            # Add 'sslmode=require' to ensure stable handshake with Neon
+            dsn = DATABASE_URL
+            if dsn and "sslmode=" not in dsn:
+                dsn += "?sslmode=require" if "?" in dsn else "?sslmode=require"
+
+            if dsn:
                 print("Using DATABASE_URL for Neon connection.")
                 db_pool = psycopg2.pool.SimpleConnectionPool(
                     minconn=1, 
-                    maxconn=10, 
-                    dsn=DATABASE_URL,
+                    maxconn=20, # Increased maxconn for higher traffic
+                    dsn=dsn,
                 )
             else:
                 print("Using individual DB_CONFIG variables (Local/Fallback).")
                 db_pool = psycopg2.pool.SimpleConnectionPool(
                     minconn=1, 
                     maxconn=10, 
-                    **FALLBACK_DB_CONFIG
+                    # **FALLBACK_DB_CONFIG
                 )
             print("PostgreSQL connection pool initialized successfully. 🥳")
         except Exception as e:
@@ -127,26 +129,42 @@ def initialize_pool():
 def get_db_connection():
     if db_pool is None:
         raise HTTPException(status_code=500, detail="Database pool not initialized.")
-        
-    start_time = time.time()
-    conn = db_pool.getconn()
-    elapsed = time.time() - start_time
-
+    
+    conn = None
     try:
+        conn = db_pool.getconn()
+        # --- FIX: Connection Validation Logic ---
+        # This checks if the connection to Neon is still alive before giving it to the endpoint
+        try:
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            print("Detected dead connection from pool. Refreshing...")
+            db_pool.putconn(conn, close=True) # Close the dead one
+            conn = db_pool.getconn() # Get a fresh one
+        
         yield conn
+    except Exception as e:
+        print(f"Error acquiring connection: {e}")
+        if conn:
+            db_pool.putconn(conn, close=True)
+        raise HTTPException(status_code=500, detail="Database connection error")
     finally:
-        db_pool.putconn(conn)
+        if conn:
+            db_pool.putconn(conn)
 
 # --- DB Helpers (omitted for brevity) ---
-def get_user_id_by_email(email: str, conn: psycopg2.connect) -> Optional[int]:
+def get_user_id_by_email(email: str, conn) -> Optional[int]:
     """Helper function to fetch user_id from email."""
     try:
+        # Use a context manager for the cursor to ensure it closes
         with conn.cursor() as cur:
-            cur.execute(sql.SQL("SELECT user_id FROM users WHERE email = %s"), (email,))
+            cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
             result = cur.fetchone()
             return result[0] if result else None
     except Exception as e:
         print(f"Error fetching user ID for {email}: {e}")
+        # Re-raise or handle so the endpoint knows the DB is having issues
         return None
         
 def hash_password(password: str) -> str:
