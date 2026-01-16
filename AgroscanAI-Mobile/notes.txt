@@ -1,0 +1,24 @@
+1. Initialize the Project
+Open your terminal and run the following command to create the project with the recommended TypeScript template:
+
+
+npx create-expo-app@latest AgroscanAI-Mobile --template tabs
+
+2. Install Essential Dependencies
+Since your backend uses Multipart Form Data for image uploads and PostgreSQL for history, we need specific libraries to handle the camera, file system, and API calls. Run this inside your new project folder:
+
+
+npx expo install expo-camera expo-image-picker expo-file-system axios
+
+3. Setting Up the Directory Structure
+To keep it consistent with your AgroscanAI-frontend (which used a src folder with components, pages, and ui), let's mirror that logic. In Expo (using Expo Router), the app directory acts as your "Pages" folder.
+
+Manually create these folders to match your web architecture:
+
+/components/ui (For your InputField.tsx, LoadingSpinner.tsx, etc.)
+
+/components/layout (For your Navbar equivalent, usually a Tab bar)
+
+/hooks (For shared logic like useAuth)
+
+/api (For your Axios instance)
