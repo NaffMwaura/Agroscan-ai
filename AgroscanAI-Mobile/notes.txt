@@ -22,3 +22,86 @@ Manually create these folders to match your web architecture:
 /hooks (For shared logic like useAuth)
 
 /api (For your Axios instance)
+
+
+
+=========OTHER NOTES===========
+
+🛠️ LOCAL EXPO/EAS DEPLOYMENT FROM SCRATCH (WSL2)
+1. WINDOWS PREPARATION
+Enable WSL: Open PowerShell as Admin and run wsl --install.
+
+Reboot: This is mandatory for the virtual machine platform to start.
+
+Install Ubuntu: Open the Microsoft Store, install "Ubuntu 24.04," and set your username/password.
+
+2. WSL LINUX CONFIGURATION
+Open your Ubuntu terminal and run these in order:
+
+Update System: sudo apt update && sudo apt upgrade -y.
+
+Install Node.js:
+
+Bash
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+Install Tools: sudo apt install unzip wget git -y.
+
+3. CONFIGURE FILE PERMISSIONS (CRITICAL)
+To allow Git and EAS to manage files on your Windows C: drive, you must enable "metadata":
+
+Edit Config: sudo nano /etc/wsl.conf
+
+Paste this:
+
+Ini, TOML
+
+[automount]
+options = "metadata"
+Apply: Exit Linux, run wsl --shutdown in Windows PowerShell, then re-open Ubuntu.
+
+4. INSTALL ANDROID SDK (LINUX NATIVE)
+Do not use the Windows SDK path to avoid "Exec format" errors.
+
+Create Directory: mkdir -p ~/android-sdk/cmdline-tools.
+
+Download Tools:
+
+Bash
+
+cd ~/android-sdk/cmdline-tools
+wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+unzip commandlinetools-linux-*.zip
+mv cmdline-tools latest
+Set Paths: Add these to your ~/.bashrc file so they stay permanent:
+
+Bash
+
+export ANDROID_HOME=$HOME/android-sdk
+export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+Accept Licenses: yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses.
+
+5. PROJECT DEPLOYMENT
+Navigate to Project: cd /mnt/c/path/to/your/project.
+
+Install EAS CLI: npm install -g eas-cli.
+
+Configure Git:
+
+Bash
+
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+git init && git add . && git commit -m "initial local build"
+Run Local Build:
+
+Bash
+
+ANDROID_HOME=$HOME/android-sdk eas build -p android --profile preview --local
+🚀 WHY THIS WORKS
+Local Compilation: By using --local, the heavy lifting happens on your CPU, ignoring Expo's 2.0 GB upload limit.
+
+Metadata: The wsl.conf change ensures Linux can set the permissions Git needs to track files on Windows drives.
+
+Native Linux Tools: Using the Linux version of the Android SDK prevents path conflicts and execution errors between Windows and Ubuntu.
