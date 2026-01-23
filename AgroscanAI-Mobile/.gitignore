@@ -11,6 +11,7 @@ ios/
 Backend/
 *.h5
 
+
 # Expo
 .expo/
 dist/

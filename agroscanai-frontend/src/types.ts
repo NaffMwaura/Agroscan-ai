@@ -3,6 +3,7 @@ export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/
 export const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''; 
 export const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
+
 export type Page = 'landing' | 'auth' | 'dashboard';
 
 export interface AlertMessageProps {
