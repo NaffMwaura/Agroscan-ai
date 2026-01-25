@@ -110,33 +110,52 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ userToken, userId, userEm
 
     useEffect(() => { if (userEmail) fetchSavedScans(); }, [userEmail, fetchSavedScans]);
 
-    const handleUpload = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedFile) return;
-        setIsLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append("file", selectedFile);
-            formData.append("user_email", userEmail);
-            const res = await fetch(`${API_BASE_URL}/predict`, {
-                method: 'POST',
-                headers: { ...(userToken ? { Authorization: `Bearer ${userToken}` } : {}) },
-                body: formData
-            });
-            if (res.ok) {
-                setUploadMessage({ text: "Scan successful!", type: 'success' });
-                fetchSavedScans();
-                setSelectedFile(null);
-                setPreviewUrl(null);
-            }
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (_err) { 
-            // FIX 3: Changed 'err' to '_err' to signify an unused variable to ESLint
-            setUploadMessage({ text: "Error connecting to server", type: 'error' }); 
-        }
-        finally { setIsLoading(false); }
-    };
+const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) return;
+    setIsLoading(true);
+    try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("user_email", userEmail);
+        
+        const res = await fetch(`${API_BASE_URL}/predict`, {
+            method: 'POST',
+            headers: { ...(userToken ? { Authorization: `Bearer ${userToken}` } : {}) },
+            body: formData
+        });
 
+        const data = await res.json(); 
+
+        if (res.ok) {
+            setUploadMessage({ text: "Scan successful!", type: 'success' });
+            
+            // Map the response directly from the PredictionAndSaveResponse model
+            const newScan: AnalysisResult = {
+                filename: `Scan #${data.scan_id || 'New'}`,
+                prediction: data.prediction,
+                confidence: data.confidence,
+                timestamp: new Date().toLocaleString(),
+                // Ensure this matches the key 'recommendation' in your backend Pydantic model
+                recommendation: data.recommendation, 
+                scan_id: data.scan_id
+            };
+
+            // Update state immediately so the user sees the result without a reload
+            setResults(prev => [newScan, ...prev]); 
+            
+            setSelectedFile(null);
+            setPreviewUrl(null);
+        } else {
+            setUploadMessage({ text: data.message || "Scan failed", type: 'error' });
+        }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_err) { 
+        setUploadMessage({ text: "Error connecting to server", type: 'error' }); 
+    } finally { 
+        setIsLoading(false); 
+    }
+};
     return (
         <div className="min-h-screen bg-[#f8fafc] font-inter">
             {/* Navigation Header */}
