@@ -1,17 +1,71 @@
-import React, { useState,  useEffect } from 'react'; 
+import React, { useState, useEffect } from 'react'; 
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Loader2, ArrowLeft } from 'lucide-react'; 
-import type { AuthPageProps } from '../../types';
-import { API_BASE_URL } from '../../types';
-import AlertMessage from '../ui/Alertmessage';
-import InputField from '../ui/InputField';
-import { IconLeaf } from '../ui/Icons'; 
+import { Mail, Lock, Loader2, ArrowLeft, Leaf, CheckCircle, AlertCircle } from 'lucide-react'; 
+
+/**
+ * AGROSCAN AI - AUTHENTICATION PAGE
+ * Refined with Dashboard-consistent light theme color shades.
+ * Features: Self-contained logic, unified green/amber palette, and responsive design.
+ */
+
+// --- Types ---
+
+interface AuthPageProps {
+    onLoginSuccess: (userId: string, email: string, token: string) => void;
+}
 
 type FastAPIValidationError = {
     loc?: (string | number)[]; 
     msg: string;              
     type: string;             
 };
+
+// --- Configuration ---
+
+const API_BASE_URL = 'https://agroscan-ai-qmrt.onrender.com'; // Replace with actual API URL
+
+// --- Sub-Components (Self-Contained) ---
+
+const IconLeaf = ({ className }: { className?: string }) => (
+    <Leaf className={className} />
+);
+
+const AlertMessage: React.FC<{ message: string | null; type: 'success' | 'error' | null }> = ({ message, type }) => {
+    if (!message) return null;
+    const isError = type === 'error';
+    return (
+        <div className={`flex items-center p-4 mb-6 rounded-2xl border animate-in fade-in slide-in-from-top-2 ${
+            isError ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'
+        }`}>
+            {isError ? <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />}
+            <p className="text-sm font-semibold">{message}</p>
+        </div>
+    );
+};
+
+const InputField: React.FC<{
+    icon: React.ElementType;
+    placeholder: string;
+    type: string;
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    className?: string;
+}> = ({ icon: Icon, placeholder, type, value, onChange, className }) => (
+    <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-green-600 transition-colors">
+            <Icon size={18} />
+        </div>
+        <input
+            type={type}
+            placeholder={placeholder}
+            value={value}
+            onChange={onChange}
+            className={`w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-green-600/50 focus:bg-white outline-none transition-all rounded-2xl ${className}`}
+        />
+    </div>
+);
+
+// --- Error Formatting Logic ---
 
 const formatError = (data: unknown, defaultMessage: string): string => {
     if (!data) return defaultMessage;
@@ -30,6 +84,8 @@ const formatError = (data: unknown, defaultMessage: string): string => {
     }
     return defaultMessage;
 };
+
+// --- Main AuthPage Component ---
 
 const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
     const location = useLocation(); 
@@ -79,72 +135,68 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
     };
 
     return (
-        <div className="relative min-h-screen w-full flex items-center justify-center bg-[#05080d] overflow-hidden font-inter">
-            {/* Soft Ambient Background Orbs */}
-            <div className="absolute top-1/4 -left-20 w-96 h-96 bg-green-500/10 blur-[120px] rounded-full animate-pulse"></div>
-            <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-amber-500/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="relative min-h-screen w-full flex items-center justify-center bg-[#f8fafc] overflow-hidden font-sans">
+            {/* Ambient Background Accents (Dashboard style) */}
+            <div className="absolute top-1/4 -left-20 w-96 h-96 bg-green-200/20 blur-[120px] rounded-full animate-pulse"></div>
+            <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-amber-200/20 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
 
             <div className="relative z-10 w-full max-w-md px-6">
-                {/* Reference Image Style: Glass card with Golden Halo */}
-                <div className="relative bg-[#0a0f1a]/80 backdrop-blur-2xl rounded-[2rem] p-8 shadow-[0_0_80px_-20px_rgba(251,191,36,0.2)] border border-white/10 overflow-hidden">
+                {/* Auth Card: Matching Dashboard Elevation and Radii */}
+                <div className="relative bg-white rounded-[2.5rem] p-8 shadow-2xl shadow-green-900/5 border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                     
-                    {/* The Golden Border Light (Pseudo-Reflector) */}
-                    <div className="absolute inset-0 border border-amber-400/20 rounded-[2rem] pointer-events-none"></div>
-                    <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-400/5 blur-3xl rounded-full"></div>
+                    {/* Subtle Top Accent */}
+                    <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-green-600 to-amber-500 pointer-events-none"></div>
 
                     <div className="relative z-20">
-                        <button onClick={() => navigate('/')} className="flex items-center space-x-2 text-gray-500 hover:text-amber-400 transition-colors mb-10 group">
+                        <button onClick={() => navigate('/')} className="flex items-center space-x-2 text-gray-400 hover:text-green-600 transition-colors mb-10 group">
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Return</span>
+                            <span className="text-xs font-bold uppercase tracking-widest">Return Home</span>
                         </button>
 
                         <header className="text-center mb-8">
-                            <div className="inline-flex p-4 bg-amber-400/10 rounded-2xl mb-4 border border-amber-400/20 shadow-inner">
-                                <IconLeaf className="w-8 h-8 text-amber-400" />
+                            <div className="inline-flex p-4 bg-green-100 rounded-[1.5rem] mb-4 border border-green-200 shadow-sm">
+                                <IconLeaf className="w-8 h-8 text-green-600" />
                             </div>
-                            <h1 className="text-3xl font-bold text-white tracking-tight">
-                                {view === 'register' ? 'Create Account' : 'Welcome Back'}
+                            <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+                                {view === 'register' ? 'Join Agroscan AI' : 'Welcome Back'}
                             </h1>
-                            <p className="text-gray-400 text-sm mt-2">Precision analysis at your fingertips</p>
+                            <p className="text-gray-500 text-sm mt-2 font-medium">Precision agricultural analysis</p>
                         </header>
 
                         <AlertMessage message={message ? message.text : null} type={message ? message.type : null} />
 
                         <form onSubmit={(e) => { e.preventDefault(); handleAction(); }} className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest ml-1">Email</label>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email Address</label>
                                 <InputField 
                                     icon={Mail} 
                                     placeholder="farmer@agroscan.ai" 
                                     type="email" 
                                     value={email} 
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-700 focus:border-amber-500/50"
                                 />
                             </div>
                             
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest ml-1">Password</label>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Password</label>
                                 <InputField 
                                     icon={Lock} 
                                     placeholder="••••••••" 
                                     type="password" 
                                     value={password} 
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-700 focus:border-amber-500/50"
                                 />
                             </div>
                             
                             {view === 'register' && (
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest ml-1">Confirm</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Confirm Identity</label>
                                     <InputField 
                                         icon={Lock} 
                                         placeholder="••••••••" 
                                         type="password" 
                                         value={confirmPassword} 
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="bg-white/5 border-white/10 text-white placeholder:text-gray-700 focus:border-amber-500/50"
                                     />
                                 </div>
                             )}
@@ -152,16 +204,23 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                             <button 
                                 type="submit" 
                                 disabled={isLoading} 
-                                className="w-full py-4 mt-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold rounded-2xl transition-all shadow-[0_20px_40px_-15px_rgba(251,191,36,0.3)] active:scale-95 disabled:opacity-50"
+                                className="w-full py-4 mt-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-green-100 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-2"
                             >
-                                {isLoading ? <Loader2 className="animate-spin mx-auto h-5 w-5" /> : (view === 'register' ? 'Register' : 'Sign In')}
+                                {isLoading ? (
+                                    <Loader2 className="animate-spin h-5 w-5 text-white" />
+                                ) : (
+                                    <span>{view === 'register' ? 'Register Account' : 'Sign In'}</span>
+                                )}
                             </button>
                         </form>
 
-                        <footer className="mt-8 text-center">
-                            <Link to={view === 'register' ? "/login" : "/register"} className="text-gray-500 text-sm hover:text-white transition-colors">
-                                {view === 'register' ? 'Already have an account? ' : "Don't have an account? "}
-                                <span className="text-amber-400 font-bold underline underline-offset-4 decoration-amber-400/20">
+                        <footer className="mt-8 text-center border-t border-gray-50 pt-8">
+                            <Link 
+                                to={view === 'register' ? "/login" : "/register"} 
+                                className="text-gray-500 text-sm font-medium hover:text-green-600 transition-colors"
+                            >
+                                {view === 'register' ? 'Already have an account? ' : "New to Agroscan? "}
+                                <span className="text-green-600 font-bold hover:underline underline-offset-4 decoration-green-600/20">
                                     {view === 'register' ? 'Sign In' : 'Join Now'}
                                 </span>
                             </Link>
