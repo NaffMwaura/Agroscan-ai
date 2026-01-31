@@ -28,6 +28,7 @@ const systemPrompt = `
   Keep all responses professional, practical, and localized for Kenyan smallholder tea farmers.
 `;
 
+
 export default function ChatbotComponent() {
   const [messages, setMessages] = useState([
     { id: '1', text: "Hello! I am AgroBot. How can I assist you today?", sender: 'ai' }

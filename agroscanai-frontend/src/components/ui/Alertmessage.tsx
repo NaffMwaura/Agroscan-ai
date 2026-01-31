@@ -3,6 +3,8 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import type { AlertMessageProps } from '../../types'; // Import type from shared file
  // Import type from shared file
 
+
+ 
 const AlertMessage: React.FC<AlertMessageProps> = ({ message, type }) => {
   if (!message) return null;
   const baseClasses = "p-4 rounded-xl text-sm mb-4 transition-all duration-300 shadow-md flex items-center";
