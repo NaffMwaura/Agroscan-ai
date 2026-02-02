@@ -8,6 +8,7 @@ interface ChatWidgetProps {
     userId: string | null;
 }
 
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({ userToken, userId }) => {
     const [isOpen, setIsOpen] = useState(false);
     

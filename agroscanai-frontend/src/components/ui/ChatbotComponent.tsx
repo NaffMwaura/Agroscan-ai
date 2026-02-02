@@ -129,6 +129,7 @@ const ChatbotComponent: React.FC = () => {
       const candidate = result.candidates?.[0];
       const fullAiResponseText = candidate?.content?.parts?.[0]?.text || "Sorry, I encountered an issue generating a response.";
       
+      
       let sources: Source[] = [];
       const groundingMetadata = candidate?.groundingMetadata;
       if (groundingMetadata && groundingMetadata.groundingAttributions) {
