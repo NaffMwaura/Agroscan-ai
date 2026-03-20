@@ -6,14 +6,6 @@ import {
     Leaf, CheckCircle, AlertCircle
 } from 'lucide-react';
 
-/**
- * AGROSCAN AI - DASHBOARD
- * * Implementation of the three-page navigation structure:
- * 1. Overview: Hero section and testimonials.
- * 2. AI Analysis: Upload and diagnosis interface.
- * 3. History: Chronological log of previous scans.
- * * Update: Persistent image preview after scan completion.
- */
 
 // --- Configuration & Types ---
 

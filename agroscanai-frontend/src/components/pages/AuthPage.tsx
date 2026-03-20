@@ -2,12 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Loader2, ArrowLeft, Leaf, CheckCircle, AlertCircle } from 'lucide-react'; 
 
-/**
- * AGROSCAN AI - AUTHENTICATION PAGE
- * Refined with Dashboard-consistent light theme color shades.
- * Features: Self-contained logic, unified green/amber palette, and responsive design.
- */
-
 // --- Types ---
 
 interface AuthPageProps {

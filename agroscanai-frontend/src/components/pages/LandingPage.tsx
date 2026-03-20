@@ -10,9 +10,6 @@ import teaFarmBg2 from '../../assets/bg-2.jpg';
 import teaFarmBg3 from '../../assets/bg-3.jpeg';
 import teaFarmBg4 from '../../assets/bg-4.jpg';
 
-/**
- * Custom hook to handle the deleting and retyping effect
- */
 const useTypewriter = (text: string, speed = 100, delay = 3000) => {
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
