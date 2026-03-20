@@ -133,8 +133,6 @@ def get_db_connection():
     conn = None
     try:
         conn = db_pool.getconn()
-        # --- FIX: Connection Validation Logic ---
-        # This checks if the connection to Neon is still alive before giving it to the endpoint
         try:
             with conn.cursor() as cur:
                 cur.execute('SELECT 1')
@@ -275,8 +273,6 @@ def load_ml_model_lazy():
         # If model building or weight loading fails, raise 503
         print(f"ERROR: Could not lazy load ML model weights. Reason: {e}")
         raise HTTPException(status_code=503, detail="ML model failed to load during first request.")
-# ---------------------------------------------
-
 
 # --- Startup/Shutdown Events (Restore simple DB startup) ---
 
